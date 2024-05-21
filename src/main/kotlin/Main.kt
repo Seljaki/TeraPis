@@ -1,5 +1,5 @@
 package si.seljaki
 
-fun main() {
-    println("Hello World!")
+fun main(args: Array<String>) {
+    returnTokens(args)
 }
