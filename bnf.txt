@@ -1,0 +1,42 @@
+Statements = Statement Statements | Statement
+
+PlotDefinition = plot name { PlotBody }
+
+PlotBody = PlotBody' , PlotBody | PlotBody'
+PlotBody' = Coordinates | PlotType
+
+Coordinates = coordinates: [ Points ]
+Points = Point , Points | Point
+Point = point ( REAL , REAL )
+
+PlotType = type : PlotType'
+PlotType' = forest | field
+
+
+WorkDefinition = work name { WorkBody }
+
+WorkBody = WorkBody' , WorkBody | WorkBody'
+WorkBody' = Path | Action | MaxSpeed | ImplementWidth | WorkPlot
+
+Path = path : [ Paths ]
+Paths = Path , Paths | Path
+Path = pointt ( REAL , REAL , timestamp )
+
+Action = action : name
+MaxSpeed = max-speed : REAL
+ImplementWidth = implement-width : REAL
+WorkPlot = plot : name
+
+
+If = if plot name If'
+If' = IfIsValid | IfContains
+IfIsValid = is valid { Functions }
+IfContains = contains name { Functions }
+
+Functions = Function Functions | Function
+Function = CalculatePath | CalculateArea | CalculateEfficiency | CalculateAreaCovered
+
+CalculatePath = calculatepath ( name , name )
+CalculateArea = calculatearea ( name )
+CalculateEfficiency = calculateefficiency ( name , name )
+CalculateAreaCovered = calculateareacovered ( name )
