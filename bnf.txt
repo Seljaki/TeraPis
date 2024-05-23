@@ -1,4 +1,4 @@
-Statements = Statement Statements | Statement
+x Statements = Statement Statements | Statement
 Statement = PlotDefinition | WorkDefinition | If | Function
 
 x PlotDefinition = plot name { PlotBody }
@@ -14,30 +14,31 @@ x PlotType = type : PlotType'
 x PlotType' = forest | field
 
 
-WorkDefinition = work name { WorkBody }
+x WorkDefinition = work name { WorkBody }
 
-WorkBody = WorkBody' , WorkBody | WorkBody'
-WorkBody' = Path | Action | MaxSpeed | ImplementWidth | WorkPlot
+x WorkBody = WorkBody' , WorkBody | WorkBody'
+x WorkBody' = Path | Action | MaxSpeed | ImplementWidth | WorkPlot
 
-Path = path : [ Paths ]
-Paths = Path , Paths | Path
-Path = pointt ( REAL , REAL , timestamp )
+x Path = path : [ Pointts ]
+x Pointts = Pointt , Pointts | Pointt
+x Pointt = pointt ( REAL , REAL , timestamp )
 
-Action = action : name
-MaxSpeed = max-speed : REAL
-ImplementWidth = implement-width : REAL
-WorkPlot = plot : name
+x Action = action : name
+x MaxSpeed = max-speed : REAL
+x ImplementWidth = implement-width : REAL
+x WorkPlot = plot : name
 
 
-If = if plot name If'
-If' = IfIsValid | IfContains
-IfIsValid = is valid { Statements }
-IfContains = contains name { Statements }
+x If = if plot name If'
+x If' = IfIsValid | IfContains
+x IfIsValid = is valid { Statements }
+x IfContains = contains name { Statements }
 
 // Functions = Function Functions | Function
-Function = CalculatePath | CalculateArea | CalculateEfficiency | CalculateAreaCovered
+x Function = CalculatePath | CalculateArea | CalculateEfficiency | CalculateAreaCovered | CalculateAverageSpeed
 
-CalculatePath = calculatepath ( name , name )
-CalculateArea = calculatearea ( name )
-CalculateEfficiency = calculateefficiency ( name , name )
-CalculateAreaCovered = calculateareacovered ( name )
+x CalculatePath = calculatepath ( name , name )
+x CalculateArea = calculatearea ( name )
+x CalculateEfficiency = calculateefficiency ( name , name )
+x CalculateAreaCovered = calculateareacovered ( name )
+x CalculateAverageSpeed = calculateaveragespeed ( name )
