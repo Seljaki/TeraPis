@@ -1,0 +1,11 @@
+if plot "Ime" is valid {
+  CalculatePath("Ime", "Pluzenje")
+  CalculateArea("Ime")
+}
+
+if plot "ime" contains "Sejanje koruze" {
+  CalculateEfficiency("Ime", "Sejanje koruze")
+}
+
+CalculateAverageSpeed("Sejanje koruze")
+CalculateAreaCovered("Sejanje koruze")

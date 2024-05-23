@@ -6,7 +6,8 @@ plot "Ime" {
     Point(100.0, 1.0),
     Point(100.0, 0.0)
   ],
-  type: forest
+  type: forest,
+  CalculateAverageSpeed("Sejanje koruze")
 }
 
 work "Sejanje koruze" {
@@ -36,5 +37,4 @@ if plot "ime" contains "Sejanje koruze" {
   CalculateEfficiency("Ime", "Sejanje koruze")
 }
 
-CalculateAverageSpeed("Sejanje koruze")
 CalculateAreaCovered("Sejanje koruze")
