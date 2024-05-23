@@ -8,7 +8,7 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
 
     fun nextToken(): Token {
         currentToken = scanner.getToken()
-        println(currentToken)
+        //println(currentToken)
         return currentToken
     }
 
@@ -522,7 +522,7 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
 
 fun main() {
     var result = false
-    val file = File("syntax_analyzer_tests/bad/05.txt")
+    val file = File("syntax_analyzer_tests/good/02.txt")
     try {
         result = SyntaxAnalyzer(Scanner(Lexicon, file.inputStream())).parse()
         println("No error")

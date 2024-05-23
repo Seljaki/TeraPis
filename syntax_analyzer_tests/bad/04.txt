@@ -1,2 +1,2 @@
-CalculateAverageSpeed(Sejane)
+CalculateAverageSpeed( Sejane )
 CalculateAreaCovered("Sejanje koruze")

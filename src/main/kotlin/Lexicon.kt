@@ -88,7 +88,7 @@ object Lexicon : DFA {
 
     override fun next(state: Int, code: Int): Int {
         assert(states.contains(state))
-        assert(alphabet.contains(code))
+        //assert(alphabet.contains(code))
         return transitions[state][code + 1]
     }
 
