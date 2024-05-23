@@ -57,7 +57,7 @@ interface DFA {
     val finalStates: Set<Int>
 }
 
-object lexicon : DFA {
+object Lexicon : DFA {
     override val states = (1..160).toSet() //TODO
     override val alphabet = 0..255
     override val startState = 1
@@ -339,7 +339,7 @@ fun returnTokens(args: Array<String>){
     File(args[0]).forEachLine { text +=it }
 
     try {
-        printTokens(Scanner(lexicon, text.byteInputStream()))
+        printTokens(Scanner(Lexicon, text.byteInputStream()))
     } catch (e: IOException) {
         println("Error reading the input file: ${e.message}")
     } catch (e: Error) {

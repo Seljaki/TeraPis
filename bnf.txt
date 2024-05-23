@@ -1,16 +1,17 @@
 Statements = Statement Statements | Statement
+Statement = PlotDefinition | WorkDefinition | If | Function
 
-PlotDefinition = plot name { PlotBody }
+x PlotDefinition = plot name { PlotBody }
 
-PlotBody = PlotBody' , PlotBody | PlotBody'
-PlotBody' = Coordinates | PlotType
+x PlotBody = PlotBody' , PlotBody | PlotBody'
+x PlotBody' = Coordinates | PlotType
 
-Coordinates = coordinates : [ Points ]
-Points = Point , Points | Point
-Point = point ( REAL , REAL )
+x Coordinates = coordinates : [ Points ]
+x Points = Point , Points | Point
+x Point = point ( REAL , REAL )
 
-PlotType = type : PlotType'
-PlotType' = forest | field
+x PlotType = type : PlotType'
+x PlotType' = forest | field
 
 
 WorkDefinition = work name { WorkBody }
@@ -30,10 +31,10 @@ WorkPlot = plot : name
 
 If = if plot name If'
 If' = IfIsValid | IfContains
-IfIsValid = is valid { Functions }
-IfContains = contains name { Functions }
+IfIsValid = is valid { Statements }
+IfContains = contains name { Statements }
 
-Functions = Function Functions | Function
+// Functions = Function Functions | Function
 Function = CalculatePath | CalculateArea | CalculateEfficiency | CalculateAreaCovered
 
 CalculatePath = calculatepath ( name , name )
