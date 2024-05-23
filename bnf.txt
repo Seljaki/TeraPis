@@ -5,7 +5,7 @@ PlotDefinition = plot name { PlotBody }
 PlotBody = PlotBody' , PlotBody | PlotBody'
 PlotBody' = Coordinates | PlotType
 
-Coordinates = coordinates: [ Points ]
+Coordinates = coordinates : [ Points ]
 Points = Point , Points | Point
 Point = point ( REAL , REAL )
 
