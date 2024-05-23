@@ -37,10 +37,10 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
             nextToken()
             if (currentToken.symbol == Symbol.NAME) {
                 nextToken()
-                if (currentToken.symbol == Symbol.LCRURLY) {
+                if (currentToken.symbol == Symbol.LCURLY) {
                     nextToken()
                     if(PlotBody()) {
-                        if (currentToken.symbol == Symbol.RCURCLY) {
+                        if (currentToken.symbol == Symbol.RCURLY) {
                             nextToken()
                             return true
                         }
@@ -107,7 +107,7 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
     fun Point(): Boolean {
         if (currentToken.symbol == Symbol.POINT) {
             nextToken()
-            if (currentToken.symbol == Symbol.LCRURLY) {
+            if (currentToken.symbol == Symbol.LCURLY) {
                 nextToken()
                 if (currentToken.symbol == Symbol.REAL) {
                     nextToken()
@@ -115,7 +115,7 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
                         nextToken()
                         if (currentToken.symbol == Symbol.REAL) {
                             nextToken()
-                            if (currentToken.symbol == Symbol.RCURCLY) {
+                            if (currentToken.symbol == Symbol.RCURLY) {
                                 nextToken()
                                 return true
                             }

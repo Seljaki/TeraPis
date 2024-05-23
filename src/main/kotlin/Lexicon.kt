@@ -14,8 +14,8 @@ enum class Symbol { //TODO DONE?
     COLON,
     LPAREN,
     RPAREN,
-    LCRURLY,
-    RCURCLY,
+    LCURLY,
+    RCURLY,
     LSQUARE,
     RSQUARE,
     PLOT,
@@ -115,8 +115,8 @@ object Lexicon : DFA {
         }
     }
 
-    private fun setAllTransition(from: Int, to: Int) {
-        for (i in 32..126) {
+    private fun setAllTransition(from: Int,firstChar: Int, lastChar: Int ,to: Int) {
+        for (i in firstChar..lastChar) {
             setTransition(from, i.toChar(), to)
         }
 
@@ -124,18 +124,14 @@ object Lexicon : DFA {
 
     init {
         //SKIP
-        setTransition(1, ' ', 160)
-        setTransition(1, '\t', 160)
-        setTransition(1, '\n', 160)
-        setTransition(15, ' ', 160)
-        setTransition(15, '\t', 160)
-        setTransition(15, '\n', 160)
+        setAllTransition(1,0,32,160)
+        setAllTransition(160,0,32,160)
         // EOF
         setTransition(1, EOF, 159)
         // NAME- "anything"
         setTransition(1, '"', 2)
-        setAllTransition(2,3)
-        setAllTransition(3,3)
+        setAllTransition(2,32,126,3)
+        setAllTransition(3,32,126,3)
         setTransition(3, '"', 4)
         //REAL
         setTransitionNumberRange(1,5)
@@ -202,8 +198,8 @@ object Lexicon : DFA {
         setSymbol(12, Symbol.COLON)
         setSymbol(13, Symbol.LPAREN)
         setSymbol(14, Symbol.RPAREN)
-        setSymbol(15, Symbol.LCRURLY)
-        setSymbol(16, Symbol.RCURCLY)
+        setSymbol(15, Symbol.LCURLY)
+        setSymbol(16, Symbol.RCURLY)
         setSymbol(17, Symbol.LSQUARE)
         setSymbol(18, Symbol.RSQUARE)
         setSymbol(22, Symbol.PLOT)
@@ -276,7 +272,7 @@ class Scanner(private val automaton: DFA, private val stream: InputStream) {
                 Token(symbol, lexeme, startRow, startColumn)
             }
         } else {
-            throw Error("Invalid pattern at ${row}:${column}")
+            throw Error("Invalid pattern at ${row}:${column}, TOKEN: ${automaton.symbol(state)}")
         }
     }
 }
@@ -290,8 +286,8 @@ fun name(symbol: Symbol) =
         Symbol.COLON -> "colon"
         Symbol.LPAREN -> "lparen"
         Symbol.RPAREN -> "rparen"
-        Symbol.LCRURLY -> "lcurly"
-        Symbol.RCURCLY -> "rcurly"
+        Symbol.LCURLY -> "lcurly"
+        Symbol.RCURLY -> "rcurly"
         Symbol.LSQUARE -> "lsquare"
         Symbol.RSQUARE -> "rsquare"
         Symbol.PLOT -> "plot"
