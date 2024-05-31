@@ -1,37 +1,38 @@
-x Statements = Statement Statements | Statement
-x Statement = plot PlotDefinition | work WorkDefinition | if If | Function
+Statements = Statement Statements | Statement
+Statement = plot PlotDefinition | work WorkDefinition | if If | Function | variable VariableAssigment
 
-x PlotDefinition = name { PlotBody }
+VariableAssigment := = Expr
 
-x PlotBody = PlotBody' , PlotBody | PlotBody'
-x PlotBody' = coordinates Coordinates | type PlotType
+PlotDefinition = name { PlotBody }
 
-x Coordinates = : [ Points ]
-x Points = Point , Points | Point
-x Point = point ( REAL , REAL )
+PlotBody = PlotBody' , PlotBody | PlotBody'
+PlotBody' = coordinates Coordinates | type PlotType
 
-x PlotType =  : forest | : field
+Coordinates = : [ Points ]
+Points = Point , Points | Point
+Point = point ( Expr , Expr )
+
+PlotType =  : forest | : field
+
+WorkDefinition =  name { WorkBody }
+
+WorkBody = WorkBody' , WorkBody | WorkBody'
+WorkBody' = path Path | action Action | max-speed MaxSpeed | implement-width ImplementWidth | plot WorkPlot
+
+Path =  : [ Pointts ]
+Pointts = Pointt , Pointts | Pointt
+Pointt = pointt ( Expr , Expr , timestamp )
+
+Action =  : name
+MaxSpeed =  : Expr
+ImplementWidth = : Expr
+WorkPlot = : name
 
 
-x WorkDefinition =  name { WorkBody }
-
-x WorkBody = WorkBody' , WorkBody | WorkBody'
-x WorkBody' = path Path | action Action | max-speed MaxSpeed | implement-width ImplementWidth | plot WorkPlot
-
-x Path =  : [ Pointts ]
-x Pointts = Pointt , Pointts | Pointt
-x Pointt = pointt ( REAL , REAL , timestamp )
-
-X Action =  : name
-X MaxSpeed =  : REAL
-X ImplementWidth = : REAL
-X WorkPlot = : name
-
-
-x If = plot name If'
-x If' = is IfIsValid | contains IfContains
-x IfIsValid =  valid { Statements }
-x IfContains =  name { Statements }
+If = plot name If'
+If' = is IfIsValid | contains IfContains
+IfIsValid =  valid { Statements }
+IfContains =  name { Statements }
 
 
 Function = calculatepath ( name , name )
@@ -39,3 +40,21 @@ Function = calculatepath ( name , name )
     | calculateefficiency ( name , name )
     | calculateareacovered ( name )
     | calculateaveragespeed ( name )
+
+
+
+Expr = Additive
+Additive = Multiplicative Additive'
+Additive' = plus Multiplicative Additive'
+    | minus Multiplicative Additive'
+    | ϵ
+Multiplicative = Exponential Multiplicative'
+Multiplicative' = times Exponential Multiplicative'
+    | divide Exponential Multiplicative'
+    | integer-divide Exponential Multiplicative'
+    | ϵ
+Exponential = Unary Exponential'
+Exponential' = pow Unary Exponential'
+    | ϵ
+Unary = plus Primary | minus Primary | Primary
+Primary = real | variable | 1paren Additive rparen

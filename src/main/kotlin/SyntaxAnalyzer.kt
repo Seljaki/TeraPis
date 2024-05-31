@@ -1,7 +1,9 @@
 package si.seljaki
 
 import java.awt.Desktop.Action
+import java.beans.Expression
 import java.io.File
+import kotlin.math.exp
 
 class SyntaxAnalyzer(private val scanner: Scanner) {
     private var currentToken: Token = scanner.getToken()
@@ -42,6 +44,12 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         if (currentToken.symbol == Symbol.IF) {
             nextToken()
             if(If()) {
+                return true
+            }
+        }
+        if (currentToken.symbol == Symbol.VARIABLE) {
+            nextToken()
+            if(VariableAssigment()) {
                 return true
             }
         }
@@ -126,12 +134,10 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
             nextToken()
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
-                if (currentToken.symbol == Symbol.REAL) {
-                    nextToken()
+                if (expr()) {
                     if (currentToken.symbol == Symbol.COMMA) {
                         nextToken()
-                        if (currentToken.symbol == Symbol.REAL) {
-                            nextToken()
+                        if (expr()) {
                             if (currentToken.symbol == Symbol.RPAREN) {
                                 nextToken()
                                 return true
@@ -252,12 +258,10 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
             nextToken()
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
-                if (currentToken.symbol == Symbol.REAL) {
-                    nextToken()
+                if (expr()) {
                     if (currentToken.symbol == Symbol.COMMA) {
                         nextToken()
-                        if (currentToken.symbol == Symbol.REAL) {
-                            nextToken()
+                        if (expr()) {
                             if (currentToken.symbol == Symbol.COMMA) {
                                 nextToken()
                                 if(currentToken.symbol == Symbol.TIMESTAMP) {
@@ -290,8 +294,7 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
     fun MaxSpeed(): Boolean {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
-            if(currentToken.symbol == Symbol.REAL) {
-                nextToken()
+            if(expr()) {
                 return true
             }
         }
@@ -301,8 +304,7 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
     fun ImplementWidth(): Boolean {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
-            if(currentToken.symbol == Symbol.REAL) {
-                nextToken()
+            if(expr()) {
                 return true
             }
         }
@@ -461,6 +463,72 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
                 }
             }
             throw IllegalStateException("Encountered invalid token: $currentToken")
+        }
+        return false
+    }
+
+    fun VariableAssigment(): Boolean {
+        if (currentToken.symbol == Symbol.EQUALS) {
+            nextToken()
+            if(expr()) {
+                return true
+            }
+        }
+        throw IllegalStateException("Encountered invalid token: $currentToken")
+    }
+
+    fun expr(): Boolean {
+        return additive()
+    }
+    fun additive(): Boolean {
+        return multiplicative() && additive2()
+    }
+    fun additive2(): Boolean {
+        if(currentToken.symbol == Symbol.PLUS || currentToken.symbol == Symbol.MINUS) {
+            nextToken()
+            return multiplicative() && additive2()
+        }
+        return true
+    }
+    fun multiplicative(): Boolean {
+        return exponential() && multiplicative2()
+    }
+    fun multiplicative2(): Boolean {
+        if(currentToken.symbol == Symbol.MULTIPLY || currentToken.symbol == Symbol.DIVIDE) {
+            nextToken()
+            return exponential() && multiplicative2()
+        }
+        return true
+    }
+    fun exponential(): Boolean {
+        return unary() && exponential2()
+    }
+    fun exponential2(): Boolean {
+        if (currentToken.symbol == Symbol.POW) {
+            nextToken()
+            return unary() && exponential2()
+        }
+        return true
+    }
+    fun unary(): Boolean {
+        if (currentToken.symbol == Symbol.PLUS || currentToken.symbol == Symbol.MINUS) {
+            nextToken()
+            return primary()
+        }
+        return primary()
+    }
+    fun primary(): Boolean {
+        if (currentToken.symbol == Symbol.REAL || currentToken.symbol == Symbol.VARIABLE) {
+            nextToken()
+            return true
+        } else if (currentToken.symbol == Symbol.LPAREN) {
+            nextToken()
+            if (additive()) {
+                if(currentToken.symbol == Symbol.RPAREN) {
+                    nextToken()
+                    return true
+                }
+            }
         }
         return false
     }
