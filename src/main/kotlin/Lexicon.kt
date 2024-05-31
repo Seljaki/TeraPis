@@ -42,7 +42,13 @@ enum class Symbol { //TODO DONE?
     CALCULATE_AREA_COVERED,
     SKIP,
     EOF,
-
+    VARIABLE,
+    EQUALS,
+    PLUS,
+    MINUS,
+    DIVIDE,
+    MULTIPLY,
+    POW
 }
 
 const val EOF = -1
@@ -58,15 +64,14 @@ interface DFA {
 }
 
 object Lexicon : DFA {
-    override val states = (1..160).toSet() //TODO
+    override val states = (1..190).toSet() //TODO
     override val alphabet = 0..255
     override val startState = 1
-    override val finalStates = setOf(4,5,7,10,11,12,13,14,15,16,17,18,22,25,30,31,42,48,52,58,62,68,77,82,87,89,90,104,117,124,128,138,149,153,159,160) //TODO
+    override val finalStates = setOf(4,5,7,10,11,12,13,14,15,16,17,18,22,25,30,31,42,48,52,58,62,68,77,82,87,89,90,104,117,124,128,138,149,153,159,163,165,166,167,168,169,170,190) //TODO
 
     private val numberOfStates = states.max() + 1 // plus the ERROR_STATE
     private val numberOfCodes = alphabet.max() + 1 // plus the EOF
     private val transitions = Array(numberOfStates) { IntArray(numberOfCodes) }
-    private val errorTransitions = Array(numberOfStates) { (numberOfCodes) }
 
     private val values = Array(numberOfStates) { Symbol.SKIP }
 
@@ -78,17 +83,12 @@ object Lexicon : DFA {
         transitions[from][code + 1] = to
     }
 
-    /*private fun setError(from: Int, to: Int) {
-        errorTransitions[from] = to // + 1 because EOF is -1 and the array starts at 0
-    }*/
-
     private fun setSymbol(state: Int, symbol: Symbol) {
         values[state] = symbol
     }
 
     override fun next(state: Int, code: Int): Int {
         assert(states.contains(state))
-        //assert(alphabet.contains(code))
         return transitions[state][code + 1]
     }
 
@@ -97,7 +97,7 @@ object Lexicon : DFA {
         return values[state]
     }
 
-    private fun setTransitionNumberRange(from: Int, to: Int) { //true: crke, false: stevila
+    private fun setTransitionNumberRange(from: Int, to: Int) {
         var c ='0'
         while (c <= '9') {
             setTransition(from, c, to)
@@ -111,7 +111,6 @@ object Lexicon : DFA {
         for (c in fullWord) {
             setTransition(InnerFrom, c, innerTo)
             InnerFrom=innerTo++
-
         }
     }
 
@@ -124,8 +123,8 @@ object Lexicon : DFA {
 
     init {
         //SKIP
-        setAllTransition(1,0,32,160)
-        setAllTransition(160,0,32,160)
+        setAllTransition(1,0,32,190)
+        setAllTransition(190,0,32,190)
         // EOF
         setTransition(1, EOF, 159)
         // NAME- "anything"
@@ -153,6 +152,12 @@ object Lexicon : DFA {
         setTransition(1, '}', 16)
         setTransition(1, '[', 17)
         setTransition(1, ']', 18)
+        setTransition(1, '=', 165)
+        setTransition(1, '+', 166)
+        setTransition(1, '-', 167)
+        setTransition(1, '*', 168)
+        setTransition(1, '/', 169)
+        setTransition(1, '^', 170)
         //PLOT and PATH
         setStrictTransition(1,"plot",19)
         setStrictTransition(19,"ath",23)
@@ -172,8 +177,15 @@ object Lexicon : DFA {
         //MEADOW and MAX-SPEED
         setStrictTransition(1,"max-speed",69)
         setStrictTransition(69,"eadow",78)
-        //VALID
+        //VALID and VAR_[anything]
         setStrictTransition(1,"valid",83)
+        setStrictTransition(84,"r_",161)
+        setAllTransition(162,48,57,163)
+        setAllTransition(162,65,90,163)
+        setAllTransition(162,97,122,163)
+        setAllTransition(163,48,57,163)
+        setAllTransition(163,65,90,163)
+        setAllTransition(163,97,122,163)
         //IF, IS, IMPLEMENT-WIDTH
         setStrictTransition(1,"if",88)
         setTransition(88, 's', 90)
@@ -224,9 +236,14 @@ object Lexicon : DFA {
         setSymbol(138, Symbol.CALCULATE_EFFICIENCY)
         setSymbol(149, Symbol.CALCULATE_AVERAGE_SPEED)
         setSymbol(153, Symbol.WORK)
+        setSymbol(163, Symbol.VARIABLE)
+        setSymbol(165, Symbol.EQUALS)
+        setSymbol(166, Symbol.PLUS)
+        setSymbol(167, Symbol.MINUS)
+        setSymbol(168, Symbol.MULTIPLY)
+        setSymbol(169, Symbol.DIVIDE)
+        setSymbol(170, Symbol.POW)
     }
-
-
 }
 
 data class Token(val symbol: Symbol, val lexeme: String, val startRow: Int, val startColumn: Int)
@@ -312,6 +329,14 @@ fun name(symbol: Symbol) =
         Symbol.CALCULATE_EFFICIENCY -> "CalculateEfficiency"
         Symbol.CALCULATE_AVERAGE_SPEED -> "CalculateAverageSpeed"
         Symbol.CALCULATE_AREA_COVERED -> "CalculateAreaCovered"
+        Symbol.VARIABLE -> "variable"
+        Symbol.EQUALS -> "equals"
+        Symbol.PLUS -> "plus"
+        Symbol.MINUS -> "minus"
+        Symbol.MULTIPLY -> "multiply"
+        Symbol.DIVIDE -> "divide"
+        Symbol.POW -> "power"
+
         else -> throw Error("Invalid symbol")
     }
 
@@ -331,11 +356,9 @@ fun printTokens(scanner: Scanner) {
 }
 
 fun returnTokens(args: Array<String>){
-    var text=""
-    File(args[0]).forEachLine { text +=it }
-
     try {
-        printTokens(Scanner(Lexicon, text.byteInputStream()))
+        val input = File(args[0])
+        printTokens(Scanner(Lexicon, input.inputStream()))
     } catch (e: IOException) {
         println("Error reading the input file: ${e.message}")
     } catch (e: Error) {
