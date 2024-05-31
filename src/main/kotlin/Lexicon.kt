@@ -110,7 +110,6 @@ object Lexicon : DFA {
         var innerTo = to
         for (c in fullWord) {
             setTransition(InnerFrom, c, innerTo)
-            println("$InnerFrom | $c |$innerTo")
             InnerFrom=innerTo++
         }
     }
@@ -187,7 +186,6 @@ object Lexicon : DFA {
         setAllTransition(163,48,57,163)
         setAllTransition(163,65,90,163)
         setAllTransition(163,97,122,163)
-        //setTransition(163, '_', 164)
         //IF, IS, IMPLEMENT-WIDTH
         setStrictTransition(1,"if",88)
         setTransition(88, 's', 90)
@@ -358,11 +356,9 @@ fun printTokens(scanner: Scanner) {
 }
 
 fun returnTokens(args: Array<String>){
-    var text=""
-    File(args[0]).forEachLine { text +=it }
-
     try {
-        printTokens(Scanner(Lexicon, text.byteInputStream()))
+        val input = File(args[0])
+        printTokens(Scanner(Lexicon, input.inputStream()))
     } catch (e: IOException) {
         println("Error reading the input file: ${e.message}")
     } catch (e: Error) {
