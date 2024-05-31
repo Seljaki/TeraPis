@@ -1,44 +1,41 @@
 x Statements = Statement Statements | Statement
-Statement = PlotDefinition | WorkDefinition | If | Function
+x Statement = plot PlotDefinition | work WorkDefinition | if If | Function
 
-x PlotDefinition = plot name { PlotBody }
+x PlotDefinition = name { PlotBody }
 
 x PlotBody = PlotBody' , PlotBody | PlotBody'
-x PlotBody' = Coordinates | PlotType
+x PlotBody' = coordinates Coordinates | type PlotType
 
-x Coordinates = coordinates : [ Points ]
+x Coordinates = : [ Points ]
 x Points = Point , Points | Point
 x Point = point ( REAL , REAL )
 
-x PlotType = type : PlotType'
-x PlotType' = forest | field
+x PlotType =  : forest | : field
 
 
-x WorkDefinition = work name { WorkBody }
+x WorkDefinition =  name { WorkBody }
 
 x WorkBody = WorkBody' , WorkBody | WorkBody'
-x WorkBody' = Path | Action | MaxSpeed | ImplementWidth | WorkPlot
+x WorkBody' = path Path | action Action | max-speed MaxSpeed | implement-width ImplementWidth | plot WorkPlot
 
-x Path = path : [ Pointts ]
+x Path =  : [ Pointts ]
 x Pointts = Pointt , Pointts | Pointt
 x Pointt = pointt ( REAL , REAL , timestamp )
 
-x Action = action : name
-x MaxSpeed = max-speed : REAL
-x ImplementWidth = implement-width : REAL
-x WorkPlot = plot : name
+X Action =  : name
+X MaxSpeed =  : REAL
+X ImplementWidth = : REAL
+X WorkPlot = : name
 
 
-x If = if plot name If'
-x If' = IfIsValid | IfContains
-x IfIsValid = is valid { Statements }
-x IfContains = contains name { Statements }
+x If = plot name If'
+x If' = is IfIsValid | contains IfContains
+x IfIsValid =  valid { Statements }
+x IfContains =  name { Statements }
 
-// Functions = Function Functions | Function
-x Function = CalculatePath | CalculateArea | CalculateEfficiency | CalculateAreaCovered | CalculateAverageSpeed
 
-x CalculatePath = calculatepath ( name , name )
-x CalculateArea = calculatearea ( name )
-x CalculateEfficiency = calculateefficiency ( name , name )
-x CalculateAreaCovered = calculateareacovered ( name )
-x CalculateAverageSpeed = calculateaveragespeed ( name )
+Function = calculatepath ( name , name )
+    | calculatearea ( name )
+    | calculateefficiency ( name , name )
+    | calculateareacovered ( name )
+    | calculateaveragespeed ( name )
