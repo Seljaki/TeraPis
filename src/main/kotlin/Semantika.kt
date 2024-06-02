@@ -2,12 +2,45 @@ package si.seljaki
 
 import java.io.File
 
+sealed class ASTNode
+
+data class PlotDefinitionNode(val name: String, val body: PlotBodyNode) : ASTNode()
+data class WorkDefinitionNode(val name: String, val body: WorkBodyNode) : ASTNode()
+data class IfNode(val condition: IfConditionNode, val body: List<ASTNode>) : ASTNode()
+data class FunctionCallNode(val name: String, val params: List<String>) : ASTNode()
+data class VariableAssignmentNode(val name: String, val expr: ExprNode) : ASTNode()
+
+sealed class PlotBodyNode : ASTNode()
+data class CoordinatesNode(val points: List<PointNode>) : PlotBodyNode()
+data class PlotTypeNode(val type: String) : PlotBodyNode()
+
+sealed class WorkBodyNode : ASTNode()
+data class PathNode(val points: List<PointTNode>) : WorkBodyNode()
+data class ActionNode(val action: String) : WorkBodyNode()
+data class MaxSpeedNode(val speed: ExprNode) : WorkBodyNode()
+data class ImplementWidthNode(val width: ExprNode) : WorkBodyNode()
+data class WorkPlotNode(val plotName: String) : WorkBodyNode()
+
+data class PointNode(val x: ExprNode, val y: ExprNode) : ASTNode()
+data class PointTNode(val x: ExprNode, val y: ExprNode, val timestamp: String) : ASTNode()
+
+sealed class IfConditionNode : ASTNode()
+data class IfIsValidNode(val plotName: String) : IfConditionNode()
+data class IfContainsNode(val plotName: String, val workName: String) : IfConditionNode()
+
+sealed class ExprNode : ASTNode()
+data class RealNode(val value: Double) : ExprNode()
+data class VariableNode(val name: String) : ExprNode()
+data class BinaryOpNode(val left: ExprNode, val op: String, val right: ExprNode) : ExprNode()
+data class UnaryOpNode(val op: String, val expr: ExprNode) : ExprNode()
+
 class SemanticAnalyzer(private val scanner: Scanner) {
     private var currentToken: Token = scanner.getToken()
     private val declaredPlots = mutableSetOf<String>()
     private val declaredWorks = mutableSetOf<String>()
     private val declaredVariables = mutableSetOf<String>()
     private val semanticErrors = mutableListOf<String>()
+    private val astNodes = mutableListOf<ASTNode>()
 
     fun nextToken(): Token {
         currentToken = scanner.getToken()
@@ -68,11 +101,11 @@ class SemanticAnalyzer(private val scanner: Scanner) {
             nextToken()
             if (currentToken.symbol == Symbol.LCURLY) {
                 nextToken()
-                if (PlotBody()) {
-                    if (currentToken.symbol == Symbol.RCURLY) {
-                        nextToken()
-                        return true
-                    }
+                val body = PlotBody()
+                if (body != null && currentToken.symbol == Symbol.RCURLY) {
+                    nextToken()
+                    astNodes.add(PlotDefinitionNode(plotName, body))
+                    return true
                 }
             }
         }
@@ -80,20 +113,19 @@ class SemanticAnalyzer(private val scanner: Scanner) {
         return false
     }
 
-    fun PlotBody(): Boolean {
+    fun PlotBody(): PlotBodyNode? {
         println("Entering PlotBody with token: $currentToken")
-        if (PlotBody2()) {
-            if (currentToken.symbol == Symbol.COMMA) {
-                nextToken()
-                return PlotBody()
-            }
-            return true
+        val elements = mutableListOf<PlotBodyNode>()
+        while (true) {
+            val element = PlotBody2() ?: break
+            elements.add(element)
+            if (currentToken.symbol != Symbol.COMMA) break
+            nextToken()
         }
-        semanticErrors.add("Invalid plot body at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
+        return if (elements.isNotEmpty()) elements[0] else null
     }
 
-    fun PlotBody2(): Boolean {
+    fun PlotBody2(): PlotBodyNode? {
         println("Entering PlotBody2 with token: $currentToken")
         return when (currentToken.symbol) {
             Symbol.COORDINATES -> {
@@ -106,82 +138,73 @@ class SemanticAnalyzer(private val scanner: Scanner) {
             }
             else -> {
                 semanticErrors.add("Invalid plot body element at ${currentToken.startRow}:${currentToken.startColumn}")
-                false
+                null
             }
         }
     }
 
-    fun Coordinates(): Boolean {
+    fun Coordinates(): CoordinatesNode? {
         println("Entering Coordinates with token: $currentToken")
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
             if (currentToken.symbol == Symbol.LSQUARE) {
                 nextToken()
-                if (Points()) {
-                    if (currentToken.symbol == Symbol.RSQUARE) {
-                        nextToken()
-                        return true
-                    }
+                val points = mutableListOf<PointNode>()
+                while (true) {
+                    val point = Point() ?: break
+                    points.add(point)
+                    if (currentToken.symbol != Symbol.COMMA) break
+                    nextToken()
+                }
+                if (currentToken.symbol == Symbol.RSQUARE) {
+                    nextToken()
+                    return CoordinatesNode(points)
                 }
             }
         }
         semanticErrors.add("Invalid coordinates definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
+        return null
     }
 
-    fun Points(): Boolean {
-        println("Entering Points with token: $currentToken")
-        if (Point()) {
-            if (currentToken.symbol == Symbol.COMMA) {
-                nextToken()
-                return Points()
-            }
-            return true
-        }
-        semanticErrors.add("Invalid points definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
-    }
-
-    fun Point(): Boolean {
+    fun Point(): PointNode? {
         println("Entering Point with token: $currentToken")
         if (currentToken.symbol == Symbol.POINT) {
             nextToken()
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
-                if (expr()) {
-                    if (currentToken.symbol == Symbol.COMMA) {
+                val x = expr() ?: return null
+                if (currentToken.symbol == Symbol.COMMA) {
+                    nextToken()
+                    val y = expr() ?: return null
+                    if (currentToken.symbol == Symbol.RPAREN) {
                         nextToken()
-                        if (expr()) {
-                            if (currentToken.symbol == Symbol.RPAREN) {
-                                nextToken()
-                                return true
-                            }
-                        }
+                        return PointNode(x, y)
                     }
                 }
             }
         }
         semanticErrors.add("Invalid point definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
+        return null
     }
 
-    fun PlotType(): Boolean {
+    fun PlotType(): PlotTypeNode? {
         println("Entering PlotType with token: $currentToken")
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
             return when (currentToken.symbol) {
                 Symbol.FOREST, Symbol.FIELD -> {
+                    val type = currentToken.lexeme
                     nextToken()
-                    true
+                    PlotTypeNode(type)
                 }
                 else -> {
                     semanticErrors.add("Invalid plot type at ${currentToken.startRow}:${currentToken.startColumn}")
-                    false
+                    null
                 }
             }
         }
         semanticErrors.add("Invalid plot type definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
+        return null
     }
 
     fun WorkDefinition(): Boolean {
@@ -192,11 +215,11 @@ class SemanticAnalyzer(private val scanner: Scanner) {
             nextToken()
             if (currentToken.symbol == Symbol.LCURLY) {
                 nextToken()
-                if (WorkBody()) {
-                    if (currentToken.symbol == Symbol.RCURLY) {
-                        nextToken()
-                        return true
-                    }
+                val body = WorkBody()
+                if (body != null && currentToken.symbol == Symbol.RCURLY) {
+                    nextToken()
+                    astNodes.add(WorkDefinitionNode(workName, body))
+                    return true
                 }
             }
         }
@@ -204,20 +227,19 @@ class SemanticAnalyzer(private val scanner: Scanner) {
         return false
     }
 
-    fun WorkBody(): Boolean {
+    fun WorkBody(): WorkBodyNode? {
         println("Entering WorkBody with token: $currentToken")
-        if (WorkBody2()) {
-            if (currentToken.symbol == Symbol.COMMA) {
-                nextToken()
-                return WorkBody()
-            }
-            return true
+        val elements = mutableListOf<WorkBodyNode>()
+        while (true) {
+            val element = WorkBody2() ?: break
+            elements.add(element)
+            if (currentToken.symbol != Symbol.COMMA) break
+            nextToken()
         }
-        semanticErrors.add("Invalid work body at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
+        return if (elements.isNotEmpty()) elements[0] else null
     }
 
-    fun WorkBody2(): Boolean {
+    fun WorkBody2(): WorkBodyNode? {
         println("Entering WorkBody2 with token: $currentToken")
         return when (currentToken.symbol) {
             Symbol.PATH -> {
@@ -242,61 +264,52 @@ class SemanticAnalyzer(private val scanner: Scanner) {
             }
             else -> {
                 semanticErrors.add("Invalid work body element at ${currentToken.startRow}:${currentToken.startColumn}")
-                false
+                null
             }
         }
     }
 
-    fun Path(): Boolean {
+    fun Path(): PathNode? {
         println("Entering Path with token: $currentToken")
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
             if (currentToken.symbol == Symbol.LSQUARE) {
                 nextToken()
-                if (Pointts()) {
-                    if (currentToken.symbol == Symbol.RSQUARE) {
-                        nextToken()
-                        return true
-                    }
+                val points = mutableListOf<PointTNode>()
+                while (true) {
+                    val point = Pointt() ?: break
+                    points.add(point)
+                    if (currentToken.symbol != Symbol.COMMA) break
+                    nextToken()
+                }
+                if (currentToken.symbol == Symbol.RSQUARE) {
+                    nextToken()
+                    return PathNode(points)
                 }
             }
         }
         semanticErrors.add("Invalid path definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
+        return null
     }
 
-    fun Pointts(): Boolean {
-        println("Entering Pointts with token: $currentToken")
-        if (Pointt()) {
-            if (currentToken.symbol == Symbol.COMMA) {
-                nextToken()
-                return Pointts()
-            }
-            return true
-        }
-        semanticErrors.add("Invalid path points definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
-    }
-
-    fun Pointt(): Boolean {
+    fun Pointt(): PointTNode? {
         println("Entering Pointt with token: $currentToken")
         if (currentToken.symbol == Symbol.POINTT) {
             nextToken()
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
-                if (expr()) {
+                val x = expr() ?: return null
+                if (currentToken.symbol == Symbol.COMMA) {
+                    nextToken()
+                    val y = expr() ?: return null
                     if (currentToken.symbol == Symbol.COMMA) {
                         nextToken()
-                        if (expr()) {
-                            if (currentToken.symbol == Symbol.COMMA) {
+                        if (currentToken.symbol == Symbol.TIMESTAMP) {
+                            val timestamp = currentToken.lexeme
+                            nextToken()
+                            if (currentToken.symbol == Symbol.RPAREN) {
                                 nextToken()
-                                if (currentToken.symbol == Symbol.TIMESTAMP) {
-                                    nextToken()
-                                    if (currentToken.symbol == Symbol.RPAREN) {
-                                        nextToken()
-                                        return true
-                                    }
-                                }
+                                return PointTNode(x, y, timestamp)
                             }
                         }
                     }
@@ -304,60 +317,62 @@ class SemanticAnalyzer(private val scanner: Scanner) {
             }
         }
         semanticErrors.add("Invalid PointT definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
+        return null
     }
 
-    fun Action(): Boolean {
+    fun Action(): ActionNode? {
         println("Entering Action with token: $currentToken")
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
             if (currentToken.symbol == Symbol.NAME) {
+                val action = currentToken.lexeme
                 nextToken()
-                return true
+                return ActionNode(action)
             }
         }
         semanticErrors.add("Invalid action definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
+        return null
     }
 
-    fun MaxSpeed(): Boolean {
+    fun MaxSpeed(): MaxSpeedNode? {
         println("Entering MaxSpeed with token: $currentToken")
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
-            if (expr()) {
-                return true
-            }
+            val speed = expr() ?: return null
+            return MaxSpeedNode(speed)
         }
         semanticErrors.add("Invalid max-speed definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
+        return null
     }
 
-    fun ImplementWidth(): Boolean {
+    fun ImplementWidth(): ImplementWidthNode? {
         println("Entering ImplementWidth with token: $currentToken")
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
-            if (expr()) return true
+            val width = expr() ?: return null
+            return ImplementWidthNode(width)
         }
         semanticErrors.add("Invalid implement-width definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
+        return null
     }
 
-    fun WorkPlot(): Boolean {
+    fun WorkPlot(): WorkPlotNode? {
         println("Entering WorkPlot with token: $currentToken")
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
             if (currentToken.symbol == Symbol.NAME) {
-                if (currentToken.lexeme in declaredPlots) {
+                val plotName = currentToken.lexeme
+                if (plotName in declaredPlots) {
                     nextToken()
-                    return true
+                    return WorkPlotNode(plotName)
                 } else {
-                    semanticErrors.add("Referenced undeclared plot '${currentToken.lexeme}' at ${currentToken.startRow}:${currentToken.startColumn}")
-                    return false
+                    semanticErrors.add("Referenced undeclared plot '$plotName' at ${currentToken.startRow}:${currentToken.startColumn}")
+                    return null
                 }
             }
         }
         semanticErrors.add("Invalid work plot definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
+        return null
     }
 
     fun If(): Boolean {
@@ -368,7 +383,7 @@ class SemanticAnalyzer(private val scanner: Scanner) {
                 val plotName = currentToken.lexeme
                 if (plotName in declaredPlots) {
                     nextToken()
-                    return If2()
+                    return If2(plotName)
                 } else {
                     semanticErrors.add("Referenced undeclared plot in IF statement at ${currentToken.startRow}:${currentToken.startColumn}")
                     return false
@@ -379,16 +394,16 @@ class SemanticAnalyzer(private val scanner: Scanner) {
         return false
     }
 
-    fun If2(): Boolean {
+    fun If2(plotName: String): Boolean {
         println("Entering If2 with token: $currentToken")
         return when (currentToken.symbol) {
             Symbol.IS -> {
                 nextToken()
-                IfIsValid()
+                IfIsValid(plotName)
             }
             Symbol.CONTAINS -> {
                 nextToken()
-                IfContains()
+                IfContains(plotName)
             }
             else -> {
                 semanticErrors.add("Invalid IF condition at ${currentToken.startRow}:${currentToken.startColumn}")
@@ -397,17 +412,20 @@ class SemanticAnalyzer(private val scanner: Scanner) {
         }
     }
 
-    fun IfIsValid(): Boolean {
+    fun IfIsValid(plotName: String): Boolean {
         println("Entering IfIsValid with token: $currentToken")
         if (currentToken.symbol == Symbol.VALID) {
             nextToken()
             if (currentToken.symbol == Symbol.LCURLY) {
                 nextToken()
-                if (Statements()) {
-                    if (currentToken.symbol == Symbol.RCURLY) {
-                        nextToken()
-                        return true
-                    }
+                val body = mutableListOf<ASTNode>()
+                while (Statements()) {
+                    body.add(astNodes.removeAt(astNodes.size - 1))
+                }
+                if (currentToken.symbol == Symbol.RCURLY) {
+                    nextToken()
+                    astNodes.add(IfNode(IfIsValidNode(plotName), body))
+                    return true
                 }
             }
         }
@@ -415,7 +433,7 @@ class SemanticAnalyzer(private val scanner: Scanner) {
         return false
     }
 
-    fun IfContains(): Boolean {
+    fun IfContains(plotName: String): Boolean {
         println("Entering IfContains with token: $currentToken")
         if (currentToken.symbol == Symbol.NAME) {
             val workName = currentToken.lexeme
@@ -423,14 +441,17 @@ class SemanticAnalyzer(private val scanner: Scanner) {
                 nextToken()
                 if (currentToken.symbol == Symbol.LCURLY) {
                     nextToken()
-                    if (Statements()) {
-                        if (currentToken.symbol == Symbol.RCURLY) {
-                            nextToken()
-                            println("Exiting IfContains with success")
-                            return true
-                        } else {
-                            semanticErrors.add("Expected '}' at ${currentToken.startRow}:${currentToken.startColumn}")
-                        }
+                    val body = mutableListOf<ASTNode>()
+                    while (Statements()) {
+                        body.add(astNodes.removeAt(astNodes.size - 1))
+                    }
+                    if (currentToken.symbol == Symbol.RCURLY) {
+                        nextToken()
+                        astNodes.add(IfNode(IfContainsNode(plotName, workName), body))
+                        println("Exiting IfContains with success")
+                        return true
+                    } else {
+                        semanticErrors.add("Expected '}' at ${currentToken.startRow}:${currentToken.startColumn}")
                     }
                 } else {
                     semanticErrors.add("Expected '{' after work name at ${currentToken.startRow}:${currentToken.startColumn}")
@@ -461,8 +482,7 @@ class SemanticAnalyzer(private val scanner: Scanner) {
                         nextToken()
                         if (currentToken.symbol == Symbol.RPAREN) {
                             val validParams = when (functionName) {
-                                "CalculateEfficiency" -> firstParam in declaredPlots && secondParam in declaredWorks
-                                "CalculatePath" -> firstParam in declaredPlots && secondParam in declaredWorks
+                                "CalculateEfficiency", "CalculatePath" -> firstParam in declaredPlots && secondParam in declaredWorks
                                 else -> {
                                     semanticErrors.add("Unknown function $functionName at ${currentToken.startRow}:${currentToken.startColumn}")
                                     false
@@ -471,6 +491,7 @@ class SemanticAnalyzer(private val scanner: Scanner) {
                             if (validParams) {
                                 nextToken()
                                 println("Function $functionName processed successfully")
+                                astNodes.add(FunctionCallNode(functionName, listOf(firstParam, secondParam)))
                                 return true
                             } else {
                                 semanticErrors.add("Invalid parameters for function $functionName at ${currentToken.startRow}:${currentToken.startColumn}")
@@ -484,8 +505,7 @@ class SemanticAnalyzer(private val scanner: Scanner) {
                 } else if (currentToken.symbol == Symbol.RPAREN) {
                     val validParams = when (functionName) {
                         "CalculateArea" -> firstParam in declaredPlots
-                        "CalculateAverageSpeed" -> firstParam in declaredWorks
-                        "CalculateAreaCovered" -> firstParam in declaredWorks
+                        "CalculateAverageSpeed", "CalculateAreaCovered" -> firstParam in declaredWorks
                         else -> {
                             semanticErrors.add("Unknown function $functionName at ${currentToken.startRow}:${currentToken.startColumn}")
                             false
@@ -494,6 +514,7 @@ class SemanticAnalyzer(private val scanner: Scanner) {
                     if (validParams) {
                         nextToken()
                         println("Function $functionName processed successfully")
+                        astNodes.add(FunctionCallNode(functionName, listOf(firstParam)))
                         return true
                     } else {
                         semanticErrors.add("Invalid parameters for function $functionName at ${currentToken.startRow}:${currentToken.startColumn}")
@@ -511,7 +532,6 @@ class SemanticAnalyzer(private val scanner: Scanner) {
         return false
     }
 
-
     fun VariableAssignment(): Boolean {
         println("Entering VariableAssignment with token: $currentToken")
         if (currentToken.symbol == Symbol.VARIABLE) {
@@ -519,117 +539,120 @@ class SemanticAnalyzer(private val scanner: Scanner) {
             nextToken()
             if (currentToken.symbol == Symbol.EQUALS) {
                 nextToken()
-                if (expr()) {
-                    declaredVariables.add(varName)
-                    return true
-                }
+                val expr = expr() ?: return false
+                declaredVariables.add(varName)
+                astNodes.add(VariableAssignmentNode(varName, expr))
+                return true
             }
         }
         semanticErrors.add("Invalid variable assignment at ${currentToken.startRow}:${currentToken.startColumn}")
         return false
     }
 
-    fun expr(): Boolean {
+    fun expr(): ExprNode? {
         println("Entering expr with token: $currentToken")
         return additive()
     }
 
-    fun additive(): Boolean {
+    fun additive(): ExprNode? {
         println("Entering additive with token: $currentToken")
-        return multiplicative() && additive2()
-    }
-
-    fun additive2(): Boolean {
-        println("Entering additive2 with token: $currentToken")
-        if (currentToken.symbol == Symbol.PLUS || currentToken.symbol == Symbol.MINUS) {
+        var left = multiplicative() ?: return null
+        while (currentToken.symbol == Symbol.PLUS || currentToken.symbol == Symbol.MINUS) {
+            val op = currentToken.lexeme
             nextToken()
-            return multiplicative() && additive2()
+            val right = multiplicative() ?: return null
+            left = BinaryOpNode(left, op, right)
         }
-        return true
+        return left
     }
 
-    fun multiplicative(): Boolean {
+    fun multiplicative(): ExprNode? {
         println("Entering multiplicative with token: $currentToken")
-        return exponential() && multiplicative2()
-    }
-
-    fun multiplicative2(): Boolean {
-        println("Entering multiplicative2 with token: $currentToken")
-        if (currentToken.symbol == Symbol.MULTIPLY || currentToken.symbol == Symbol.DIVIDE) {
+        var left = exponential() ?: return null
+        while (currentToken.symbol == Symbol.MULTIPLY || currentToken.symbol == Symbol.DIVIDE) {
+            val op = currentToken.lexeme
             nextToken()
-            return exponential() && multiplicative2()
+            val right = exponential() ?: return null
+            left = BinaryOpNode(left, op, right)
         }
-        return true
+        return left
     }
 
-    fun exponential(): Boolean {
+    fun exponential(): ExprNode? {
         println("Entering exponential with token: $currentToken")
-        return unary() && exponential2()
-    }
-
-    fun exponential2(): Boolean {
-        println("Entering exponential2 with token: $currentToken")
-        if (currentToken.symbol == Symbol.POW) {
+        var left = unary() ?: return null
+        while (currentToken.symbol == Symbol.POW) {
+            val op = currentToken.lexeme
             nextToken()
-            return unary() && exponential2()
+            val right = unary() ?: return null
+            left = BinaryOpNode(left, op, right)
         }
-        return true
+        return left
     }
 
-    fun unary(): Boolean {
+    fun unary(): ExprNode? {
         println("Entering unary with token: $currentToken")
         return if (currentToken.symbol == Symbol.PLUS || currentToken.symbol == Symbol.MINUS) {
+            val op = currentToken.lexeme
             nextToken()
-            primary()
+            val expr = primary() ?: return null
+            UnaryOpNode(op, expr)
         } else {
             primary()
         }
     }
 
-    fun primary(): Boolean {
+    fun primary(): ExprNode? {
         println("Entering primary with token: $currentToken")
         return when (currentToken.symbol) {
             Symbol.REAL -> {
+                val value = currentToken.lexeme.toDouble()
                 nextToken()
-                true
+                RealNode(value)
             }
             Symbol.VARIABLE -> {
                 val varName = currentToken.lexeme
                 if (varName in declaredVariables) {
                     nextToken()
-                    true
+                    VariableNode(varName)
                 } else {
                     semanticErrors.add("Undeclared variable '$varName' used at ${currentToken.startRow}:${currentToken.startColumn}")
-                    false
+                    null
                 }
             }
             Symbol.LPAREN -> {
                 nextToken()
-                if (additive()) {
-                    if (currentToken.symbol == Symbol.RPAREN) {
-                        nextToken()
-                        return true
-                    }
+                val expr = additive() ?: return null
+                if (currentToken.symbol == Symbol.RPAREN) {
+                    nextToken()
+                    expr
+                } else {
+                    semanticErrors.add("Expected ')' at ${currentToken.startRow}:${currentToken.startColumn}")
+                    null
                 }
-                false
             }
-            else -> false
+            else -> null
         }
     }
 
     fun getSemanticErrors(): List<String> {
         return semanticErrors
     }
+
+    fun getASTNodes(): List<ASTNode> {
+        return astNodes
+    }
 }
 
 fun main() {
-    val file = File("semantika_tests/02.txt")
+    val file = File("semantika_tests/05.txt")
     try {
         val analyzer = SemanticAnalyzer(Scanner(Lexicon, file.inputStream()))
         val result = analyzer.parse()
         if (analyzer.getSemanticErrors().isEmpty()) {
             println("No error")
             println("Is correct: $result")
+            println("AST Nodes: ${analyzer.getASTNodes()}")
         } else {
             println("Semantic errors found:")
             analyzer.getSemanticErrors().forEach { println(it) }
