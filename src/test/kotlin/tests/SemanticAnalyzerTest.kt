@@ -23,6 +23,7 @@ class SemanticAnalyzerTest {
                 println(e)
             }
             println(result)
+            assertTrue(true)
             assertTrue(result)
         }
     }
