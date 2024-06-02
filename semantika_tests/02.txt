@@ -1,0 +1,27 @@
+plot "Sadovnjak" {
+  coordinates: [
+    Point(150.0, 50.0),
+    Point(151.0, 50.0),
+    Point(151.0, 51.0),
+    Point(150.0, 51.0),
+    Point(150.0, 50.0)
+  ],
+  type: forest
+}
+
+work "Trgatev" {
+  path: [
+    PointT(150.0, 50.0, 20240425T071759Z),
+    PointT(151.0, 50.0, 20240425T071759Z),
+    PointT(151.0, 51.0, 20240425T071759Z)
+  ],
+  action: "harvesting",
+  max-speed: 7,
+  implement-width: 2,
+  plot: "Sadovnjak"
+}
+
+if plot "Sadovnjak" is valid {
+  CalculatePath("Sadovnjak", "Trgatev")
+  CalculateArea("Sadovnjak")
+}

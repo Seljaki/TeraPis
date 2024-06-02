@@ -1,0 +1,22 @@
+plot "MojaNjiva" {
+  coordinates: [
+    Point(200.0, 100.0),
+    Point(201.0, 100.0),
+    Point(201.0, 101.0),
+    Point(200.0, 101.0),
+    Point(200.0, 100.0)
+  ],
+  type: field
+}
+
+work "Oranje" {
+  path: [
+    PointT(200.0, 100.0, 20240425T071759Z),
+    PointT(201.0, 100.0, 20240425T071759Z),
+    PointT(201.0, 101.0, 20240425T071759Z)
+  ],
+  action: "plowing",
+  max-speed: 10,
+  implement-width: 5,
+  plot: "MojaNjiva"
+}
