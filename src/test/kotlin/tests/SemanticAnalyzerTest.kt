@@ -24,7 +24,7 @@ class SemanticAnalyzerTest {
             }
             println(result)
             assertTrue(true)
-            //assertTrue(result)
+            assertTrue(result)
         }
     }
 }
