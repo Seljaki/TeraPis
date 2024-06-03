@@ -1,663 +1,729 @@
 package si.seljaki
 
+import java.awt.Desktop.Action
+import java.beans.Expression
 import java.io.File
+import kotlin.math.exp
 
-sealed class ASTNode
+enum class PlotType{
+    FOREST, FIELD, UNDEFINED
+}
+abstract class Expr {
+    abstract fun eval(env: MutableMap<String, Any>): Any
+}
 
-data class PlotDefinitionNode(val name: String, val body: PlotBodyNode) : ASTNode()
-data class WorkDefinitionNode(val name: String, val body: WorkBodyNode) : ASTNode()
-data class IfNode(val condition: IfConditionNode, val body: List<ASTNode>) : ASTNode()
-data class FunctionCallNode(val name: String, val params: List<String>) : ASTNode()
-data class VariableAssignmentNode(val name: String, val expr: ExprNode) : ASTNode()
+data class PlotExpr(
+    var name: String,
+    var coordinates: MutableList<Pair<Double, Double>>,
+    var type: PlotType
+) : Expr() {
+    override fun eval(env: MutableMap<String, Any>): Any {
+        if (coordinates.isEmpty()) {
+            throw IllegalStateException("Plot $name has no coordinates.")
+        }
+        if (type == PlotType.UNDEFINED) {
+            throw IllegalStateException("Plot $name has an undefined type.")
+        }
+        env["plots"] = (env["plots"] as MutableMap<String, PlotExpr>).apply { put(name, this@PlotExpr) }
+        println("Defined plot $name with type $type and coordinates $coordinates")
+        return this
+    }
+}
 
-sealed class PlotBodyNode : ASTNode()
-data class CoordinatesNode(val points: List<PointNode>) : PlotBodyNode()
-data class PlotTypeNode(val type: String) : PlotBodyNode()
+data class WorkExpr(
+    var name: String,
+    var path: MutableList<Pair<Double, Double>>,
+    var action: String,
+    var maxSpeed: Double,
+    var implementWidth: Double,
+    var plot: String
+) : Expr() {
+    override fun eval(env: MutableMap<String, Any>): Any {
+        val plots = env["plots"] as MutableMap<String, PlotExpr>
+        if (plot !in plots) {
+            throw IllegalStateException("Work $name references undefined plot $plot.")
+        }
+        if (path.isEmpty()) {
+            throw IllegalStateException("Work $name has no path defined.")
+        }
+        if (maxSpeed <= 0) {
+            throw IllegalStateException("Work $name has an invalid max speed.")
+        }
+        println("Defined work $name on plot $plot with action $action")
+        return this
+    }
+}
 
-sealed class WorkBodyNode : ASTNode()
-data class PathNode(val points: List<PointTNode>) : WorkBodyNode()
-data class ActionNode(val action: String) : WorkBodyNode()
-data class MaxSpeedNode(val speed: ExprNode) : WorkBodyNode()
-data class ImplementWidthNode(val width: ExprNode) : WorkBodyNode()
-data class WorkPlotNode(val plotName: String) : WorkBodyNode()
+data class IfExpr(val condition: String, val statements: List<Expr>) : Expr() {
+    override fun eval(env: MutableMap<String, Any>): Any {
+        println("Evaluating if condition $condition")
+        statements.forEach { it.eval(env) }
+        return this
+    }
+}
 
-data class PointNode(val x: ExprNode, val y: ExprNode) : ASTNode()
-data class PointTNode(val x: ExprNode, val y: ExprNode, val timestamp: String) : ASTNode()
+data class VariableAssignmentExpr(val variable: String, val value: Double) : Expr() {
+    override fun eval(env: MutableMap<String, Any>): Any {
+        env[variable] = value
+        println("Assigned $value to variable $variable")
+        return this
+    }
+}
 
-sealed class IfConditionNode : ASTNode()
-data class IfIsValidNode(val plotName: String) : IfConditionNode()
-data class IfContainsNode(val plotName: String, val workName: String) : IfConditionNode()
+data class FunctionCallExpr(val name: String, val args: List<String>) : Expr() {
+    override fun eval(env: MutableMap<String, Any>): Any {
+        println("Calling function $name with arguments $args")
+        // LOGIKA FUNKCIJ
+        return this
+    }
+}
+data class RealExpr(val value: Double) : Expr() {
+    override fun eval(env: MutableMap<String, Any>): Any {
+        return value
+    }
+}
 
-sealed class ExprNode : ASTNode()
-data class RealNode(val value: Double) : ExprNode()
-data class VariableNode(val name: String) : ExprNode()
-data class BinaryOpNode(val left: ExprNode, val op: String, val right: ExprNode) : ExprNode()
-data class UnaryOpNode(val op: String, val expr: ExprNode) : ExprNode()
+data class VarExpr(val name: String) : Expr() {
+    override fun eval(env: MutableMap<String, Any>): Any {
+        return env[name] ?: throw IllegalStateException("Undefined variable: $name")
+    }
+}
+
+data class PlusExpr(val left: Expr, val right: Expr) : Expr() {
+    override fun eval(env: MutableMap<String, Any>): Any {
+        return (left.eval(env) as Double) + (right.eval(env) as Double)
+    }
+}
+
+data class MinusExpr(val left: Expr, val right: Expr) : Expr() {
+    override fun eval(env: MutableMap<String, Any>): Any {
+        return (left.eval(env) as Double) - (right.eval(env) as Double)
+    }
+}
+
+data class TimesExpr(val left: Expr, val right: Expr) : Expr() {
+    override fun eval(env: MutableMap<String, Any>): Any {
+        return (left.eval(env) as Double) * (right.eval(env) as Double)
+    }
+}
+
+data class DivideExpr(val left: Expr, val right: Expr) : Expr() {
+    override fun eval(env: MutableMap<String, Any>): Any {
+        return (left.eval(env) as Double) / (right.eval(env) as Double)
+    }
+}
+
+data class PowExpr(val base: Expr, val exponent: Expr) : Expr() {
+    override fun eval(env: MutableMap<String, Any>): Any {
+        return Math.pow((base.eval(env) as Double), (exponent.eval(env) as Double))
+    }
+}
+
+data class UnaryMinusExpr(val expr: Expr) : Expr() {
+    override fun eval(env: MutableMap<String, Any>): Any {
+        return -(expr.eval(env) as Double)
+    }
+}
+class Ref<T>(var value: T)
 
 class SemanticAnalyzer(private val scanner: Scanner) {
     private var currentToken: Token = scanner.getToken()
-    private val declaredPlots = mutableSetOf<String>()
-    private val declaredWorks = mutableSetOf<String>()
-    private val declaredVariables = mutableSetOf<String>()
-    private val semanticErrors = mutableListOf<String>()
-    private val astNodes = mutableListOf<ASTNode>()
+    private val env = mutableMapOf<String, Any>("plots" to mutableMapOf<String, PlotExpr>())
 
     fun nextToken(): Token {
         currentToken = scanner.getToken()
-        println("Next token: $currentToken")
+        //println(currentToken)
         return currentToken
     }
 
     fun parse(): Boolean {
-        println("Starting parse")
         return Statements()
     }
 
     fun Statements(): Boolean {
-        println("Entering Statements")
-        while (currentToken.symbol != Symbol.EOF) {
-            if (currentToken.symbol == Symbol.RCURLY) {
-                println("Detected RCURLY in Statements, exiting")
+        if (Statement()) {
+            if (Statements()) {
                 return true
             }
-            if (!Statement()) {
-                println("Exiting Statements with failure")
-                return false
-            }
-            println("Processed a statement")
+            return true
         }
-        println("Exiting Statements")
-        return currentToken.symbol == Symbol.EOF
-    }
-
-    fun Statement(): Boolean {
-        println("Entering Statement with token: $currentToken")
-        return when (currentToken.symbol) {
-            Symbol.PLOT -> {
-                nextToken()
-                PlotDefinition()
-            }
-            Symbol.WORK -> {
-                nextToken()
-                WorkDefinition()
-            }
-            Symbol.IF -> {
-                nextToken()
-                If()
-            }
-            Symbol.VARIABLE -> {
-                VariableAssignment()
-            }
-            Symbol.EOF -> false
-            else -> Function()
-        }
-    }
-
-    fun PlotDefinition(): Boolean {
-        println("Entering PlotDefinition with token: $currentToken")
-        if (currentToken.symbol == Symbol.NAME) {
-            val plotName = currentToken.lexeme
-            declaredPlots.add(plotName)
-            nextToken()
-            if (currentToken.symbol == Symbol.LCURLY) {
-                nextToken()
-                val body = PlotBody()
-                if (body != null && currentToken.symbol == Symbol.RCURLY) {
-                    nextToken()
-                    astNodes.add(PlotDefinitionNode(plotName, body))
-                    return true
-                }
-            }
-        }
-        semanticErrors.add("Invalid plot definition at ${currentToken.startRow}:${currentToken.startColumn}")
         return false
     }
 
-    fun PlotBody(): PlotBodyNode? {
-        println("Entering PlotBody with token: $currentToken")
-        val elements = mutableListOf<PlotBodyNode>()
-        while (true) {
-            val element = PlotBody2() ?: break
-            elements.add(element)
-            if (currentToken.symbol != Symbol.COMMA) break
+    fun Statement(): Boolean {
+        if (currentToken.symbol == Symbol.PLOT) {
             nextToken()
-        }
-        return if (elements.isNotEmpty()) elements[0] else null
-    }
-
-    fun PlotBody2(): PlotBodyNode? {
-        println("Entering PlotBody2 with token: $currentToken")
-        return when (currentToken.symbol) {
-            Symbol.COORDINATES -> {
-                nextToken()
-                Coordinates()
-            }
-            Symbol.TYPE -> {
-                nextToken()
-                PlotType()
-            }
-            else -> {
-                semanticErrors.add("Invalid plot body element at ${currentToken.startRow}:${currentToken.startColumn}")
-                null
+            if(PlotDefinition()) {
+                return true
             }
         }
+        if (currentToken.symbol == Symbol.WORK) {
+            nextToken()
+            if(WorkDefinition()) {
+                return true
+            }
+        }
+        if (currentToken.symbol == Symbol.IF) {
+            nextToken()
+            if(If()) {
+                return true
+            }
+        }
+        if (currentToken.symbol == Symbol.VARIABLE) {
+            if(VariableAssigment()) {
+                return true
+            }
+        }
+        if (Function()) {
+            return true
+        }
+        return false
     }
 
-    fun Coordinates(): CoordinatesNode? {
-        println("Entering Coordinates with token: $currentToken")
+    fun PlotDefinition(): Boolean {
+        if (currentToken.symbol == Symbol.NAME) {
+            val plotName = currentToken.lexeme
+            nextToken()
+            if (currentToken.symbol == Symbol.LCURLY) {
+                nextToken()
+                val coordinates = mutableListOf<Pair<Double,Double>>()
+                var plotType = Ref(PlotType.UNDEFINED)
+                if(PlotBody(coordinates,plotType)) {
+                    if (currentToken.symbol == Symbol.RCURLY) {
+                        nextToken()
+                        PlotExpr(plotName,coordinates,plotType.value).eval(env)
+                        return true
+                    }
+                }
+            }
+        }
+        throw IllegalStateException("Encountered invalid token: $currentToken")
+    }
+
+    fun PlotBody(coordinates: MutableList<Pair<Double, Double>>, plotType: Ref<PlotType>): Boolean {
+        if (PlotBody2(coordinates,plotType)) {
+            if (currentToken.symbol == Symbol.COMMA) {
+                nextToken()
+                return PlotBody(coordinates,plotType)
+            }
+            return true
+        }
+        throw IllegalStateException("Encountered invalid token: $currentToken")
+    }
+
+    fun PlotBody2(coordinates: MutableList<Pair<Double, Double>>, plotType: Ref<PlotType>): Boolean {
+        if (currentToken.symbol == Symbol.COORDINATES) {
+            nextToken()
+            if (Coordinates(coordinates)) {
+                return true
+            }
+        }
+        if (currentToken.symbol == Symbol.TYPE) {
+            nextToken()
+            if(PlotType(plotType)) {
+                return true
+            }
+        }
+        throw IllegalStateException("Encountered invalid token: $currentToken")
+    }
+
+    fun Coordinates(coordinates: MutableList<Pair<Double, Double>>): Boolean {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
-            if (currentToken.symbol == Symbol.LSQUARE) {
+            if(currentToken.symbol == Symbol.LSQUARE) {
                 nextToken()
-                val points = mutableListOf<PointNode>()
-                while (true) {
-                    val point = Point() ?: break
-                    points.add(point)
-                    if (currentToken.symbol != Symbol.COMMA) break
-                    nextToken()
-                }
-                if (currentToken.symbol == Symbol.RSQUARE) {
-                    nextToken()
-                    return CoordinatesNode(points)
+                if(Points(coordinates)) {
+                    if(currentToken.symbol == Symbol.RSQUARE) {
+                        nextToken()
+                        return true
+                    }
                 }
             }
         }
-        semanticErrors.add("Invalid coordinates definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return null
+        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Point(): PointNode? {
-        println("Entering Point with token: $currentToken")
+    fun Points(coordinates: MutableList<Pair<Double, Double>>): Boolean {
+        if (Point(coordinates)) {
+            if (currentToken.symbol == Symbol.COMMA) {
+                nextToken()
+                return Points(coordinates)
+            }
+            return true
+        }
+        throw IllegalStateException("Encountered invalid token: $currentToken")
+    }
+
+    fun Point(coordinates: MutableList<Pair<Double, Double>>): Boolean {
         if (currentToken.symbol == Symbol.POINT) {
             nextToken()
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
-                val x = expr() ?: return null
-                if (currentToken.symbol == Symbol.COMMA) {
-                    nextToken()
-                    val y = expr() ?: return null
-                    if (currentToken.symbol == Symbol.RPAREN) {
+                val x = (expr().eval(env) as Double)
+                    if (currentToken.symbol == Symbol.COMMA) {
                         nextToken()
-                        return PointNode(x, y)
+                        val y  = (expr().eval(env) as Double)
+                            if (currentToken.symbol == Symbol.RPAREN) {
+                                nextToken()
+                                coordinates.add(Pair(x,y))
+                                return true
+                            }
+                    }
+            }
+        }
+        throw IllegalStateException("Encountered invalid token: $currentToken")
+    }
+
+    fun PlotType(plotType: Ref<PlotType>): Boolean {
+        if(currentToken.symbol == Symbol.COLON) {
+            nextToken()
+            if(currentToken.symbol == Symbol.FOREST) {
+                plotType.value = PlotType.FOREST
+                nextToken()
+                return true
+            }
+            if(currentToken.symbol == Symbol.FIELD) {
+                plotType.value = PlotType.FIELD
+                nextToken()
+                return true
+            }
+        }
+        throw IllegalStateException("Encountered invalid token: $currentToken")
+    }
+
+    fun WorkDefinition(): Boolean {
+        if(currentToken.symbol == Symbol.NAME) {
+            val workName = currentToken.lexeme
+            nextToken()
+            if (currentToken.symbol == Symbol.LCURLY) {
+                nextToken()
+                val path = mutableListOf<Pair<Double,Double>>()
+                var action = Ref("")
+                var maxSpeed = Ref(0.0)
+                var implementWidth = Ref(0.0)
+                var plot = Ref("")
+                if(WorkBody(path,action,maxSpeed,implementWidth,plot)) {
+                    if (currentToken.symbol == Symbol.RCURLY) {
+                        nextToken()
+                        WorkExpr(workName, path, action.value, maxSpeed.value, implementWidth.value, plot.value)
+                        return true
                     }
                 }
             }
         }
-        semanticErrors.add("Invalid point definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return null
+        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun PlotType(): PlotTypeNode? {
-        println("Entering PlotType with token: $currentToken")
-        if (currentToken.symbol == Symbol.COLON) {
-            nextToken()
-            return when (currentToken.symbol) {
-                Symbol.FOREST, Symbol.FIELD -> {
-                    val type = currentToken.lexeme
-                    nextToken()
-                    PlotTypeNode(type)
-                }
-                else -> {
-                    semanticErrors.add("Invalid plot type at ${currentToken.startRow}:${currentToken.startColumn}")
-                    null
-                }
-            }
-        }
-        semanticErrors.add("Invalid plot type definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return null
-    }
-
-    fun WorkDefinition(): Boolean {
-        println("Entering WorkDefinition with token: $currentToken")
-        if (currentToken.symbol == Symbol.NAME) {
-            val workName = currentToken.lexeme
-            declaredWorks.add(workName)
-            nextToken()
-            if (currentToken.symbol == Symbol.LCURLY) {
+    fun WorkBody(path: MutableList<Pair<Double,Double>>, action: Ref<String>,maxSpeed: Ref<Double>, implementWidth: Ref<Double>, plot: Ref<String>): Boolean {
+        if (WorkBody2(path, action, maxSpeed, implementWidth, plot)) {
+            if (currentToken.symbol == Symbol.COMMA) {
                 nextToken()
-                val body = WorkBody()
-                if (body != null && currentToken.symbol == Symbol.RCURLY) {
-                    nextToken()
-                    astNodes.add(WorkDefinitionNode(workName, body))
-                    return true
-                }
+                return WorkBody(path, action, maxSpeed, implementWidth, plot)
+            }
+            return true
+        }
+        throw IllegalStateException("Encountered invalid token: $currentToken")
+    }
+
+    fun WorkBody2(path: MutableList<Pair<Double,Double>>, action: Ref<String>,maxSpeed: Ref<Double>, implementWidth: Ref<Double>, plot: Ref<String>): Boolean {
+        if(currentToken.symbol == Symbol.PATH) {
+            nextToken()
+            if (Path(path)) {
+                return true
             }
         }
-        semanticErrors.add("Invalid work definition at ${currentToken.startRow}:${currentToken.startColumn}")
+        if(currentToken.symbol == Symbol.ACTION) {
+            nextToken()
+            if (Action(action)) {
+                return true
+            }
+        }
+        if(currentToken.symbol == Symbol.MAX_SPEED) {
+            nextToken()
+            if (MaxSpeed(maxSpeed)) {
+                return true
+            }
+        }
+        if(currentToken.symbol == Symbol.IMPLEMENT_WIDTH) {
+            nextToken()
+            if (ImplementWidth(implementWidth)) {
+                return true
+            }
+        }
+        if(currentToken.symbol == Symbol.PLOT) {
+            nextToken()
+            if (WorkPlot(plot)) {
+                return true
+            }
+        }
         return false
     }
 
-    fun WorkBody(): WorkBodyNode? {
-        println("Entering WorkBody with token: $currentToken")
-        val elements = mutableListOf<WorkBodyNode>()
-        while (true) {
-            val element = WorkBody2() ?: break
-            elements.add(element)
-            if (currentToken.symbol != Symbol.COMMA) break
+    fun Path(path: MutableList<Pair<Double,Double>>): Boolean {
+        if(currentToken.symbol == Symbol.COLON) {
             nextToken()
-        }
-        return if (elements.isNotEmpty()) elements[0] else null
-    }
-
-    fun WorkBody2(): WorkBodyNode? {
-        println("Entering WorkBody2 with token: $currentToken")
-        return when (currentToken.symbol) {
-            Symbol.PATH -> {
+            if(currentToken.symbol == Symbol.LSQUARE) {
                 nextToken()
-                Path()
-            }
-            Symbol.ACTION -> {
-                nextToken()
-                Action()
-            }
-            Symbol.MAX_SPEED -> {
-                nextToken()
-                MaxSpeed()
-            }
-            Symbol.IMPLEMENT_WIDTH -> {
-                nextToken()
-                ImplementWidth()
-            }
-            Symbol.PLOT -> {
-                nextToken()
-                WorkPlot()
-            }
-            else -> {
-                semanticErrors.add("Invalid work body element at ${currentToken.startRow}:${currentToken.startColumn}")
-                null
-            }
-        }
-    }
-
-    fun Path(): PathNode? {
-        println("Entering Path with token: $currentToken")
-        if (currentToken.symbol == Symbol.COLON) {
-            nextToken()
-            if (currentToken.symbol == Symbol.LSQUARE) {
-                nextToken()
-                val points = mutableListOf<PointTNode>()
-                while (true) {
-                    val point = Pointt() ?: break
-                    points.add(point)
-                    if (currentToken.symbol != Symbol.COMMA) break
-                    nextToken()
-                }
-                if (currentToken.symbol == Symbol.RSQUARE) {
-                    nextToken()
-                    return PathNode(points)
+                if(Pointts(path)) {
+                    if(currentToken.symbol == Symbol.RSQUARE) {
+                        nextToken()
+                        return true
+                    }
                 }
             }
         }
-        semanticErrors.add("Invalid path definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return null
+        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Pointt(): PointTNode? {
-        println("Entering Pointt with token: $currentToken")
+    fun Pointts(path: MutableList<Pair<Double,Double>>): Boolean {
+        if (Pointt(path)) {
+            if (currentToken.symbol == Symbol.COMMA) {
+                nextToken()
+                return Pointts(path)
+            }
+            return true
+        }
+        throw IllegalStateException("Encountered invalid token: $currentToken")
+    }
+
+    fun Pointt(path: MutableList<Pair<Double,Double>>): Boolean {
         if (currentToken.symbol == Symbol.POINTT) {
             nextToken()
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
-                val x = expr() ?: return null
-                if (currentToken.symbol == Symbol.COMMA) {
-                    nextToken()
-                    val y = expr() ?: return null
+                val x = (expr().eval(env) as Double)
                     if (currentToken.symbol == Symbol.COMMA) {
                         nextToken()
-                        if (currentToken.symbol == Symbol.TIMESTAMP) {
-                            val timestamp = currentToken.lexeme
-                            nextToken()
-                            if (currentToken.symbol == Symbol.RPAREN) {
+                        val y = (expr().eval(env) as Double)
+                            if (currentToken.symbol == Symbol.COMMA) {
                                 nextToken()
-                                return PointTNode(x, y, timestamp)
+                                val timestamp = currentToken.lexeme.toLong()
+                                if(currentToken.symbol == Symbol.TIMESTAMP) {
+                                    nextToken()
+                                    if (currentToken.symbol == Symbol.RPAREN) {
+                                        nextToken()
+                                        path.add(Pair(x,y))
+                                        return true
+                                    }
+                                }
                             }
-                        }
                     }
-                }
             }
         }
-        semanticErrors.add("Invalid PointT definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return null
+        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Action(): ActionNode? {
-        println("Entering Action with token: $currentToken")
+    fun Action(action: Ref<String>): Boolean {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
-            if (currentToken.symbol == Symbol.NAME) {
-                val action = currentToken.lexeme
+            if(currentToken.symbol == Symbol.NAME) {
+                action.value = currentToken.lexeme
                 nextToken()
-                return ActionNode(action)
+                return true
             }
         }
-        semanticErrors.add("Invalid action definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return null
+        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun MaxSpeed(): MaxSpeedNode? {
-        println("Entering MaxSpeed with token: $currentToken")
+    fun MaxSpeed(maxSpeed: Ref<Double>): Boolean {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
-            val speed = expr() ?: return null
-            return MaxSpeedNode(speed)
+            maxSpeed.value = (expr().eval(env) as Double)
+            return true
         }
-        semanticErrors.add("Invalid max-speed definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return null
+        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun ImplementWidth(): ImplementWidthNode? {
-        println("Entering ImplementWidth with token: $currentToken")
+    fun ImplementWidth(implementWidth: Ref<Double>): Boolean {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
-            val width = expr() ?: return null
-            return ImplementWidthNode(width)
+            implementWidth.value = (expr().eval(env) as Double)
         }
-        semanticErrors.add("Invalid implement-width definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return null
+        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun WorkPlot(): WorkPlotNode? {
-        println("Entering WorkPlot with token: $currentToken")
+    fun WorkPlot(plot: Ref<String>): Boolean {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
-            if (currentToken.symbol == Symbol.NAME) {
-                val plotName = currentToken.lexeme
-                if (plotName in declaredPlots) {
-                    nextToken()
-                    return WorkPlotNode(plotName)
-                } else {
-                    semanticErrors.add("Referenced undeclared plot '$plotName' at ${currentToken.startRow}:${currentToken.startColumn}")
-                    return null
-                }
+            if(currentToken.symbol == Symbol.NAME) {
+                plot.value = currentToken.lexeme
+                nextToken()
+                return true
             }
         }
-        semanticErrors.add("Invalid work plot definition at ${currentToken.startRow}:${currentToken.startColumn}")
-        return null
+        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
     fun If(): Boolean {
-        println("Entering If with token: $currentToken")
         if (currentToken.symbol == Symbol.PLOT) {
             nextToken()
             if (currentToken.symbol == Symbol.NAME) {
                 val plotName = currentToken.lexeme
-                if (plotName in declaredPlots) {
-                    nextToken()
-                    return If2(plotName)
-                } else {
-                    semanticErrors.add("Referenced undeclared plot in IF statement at ${currentToken.startRow}:${currentToken.startColumn}")
-                    return false
-                }
+                nextToken()
+                return If2(plotName)
             }
         }
-        semanticErrors.add("Invalid IF statement at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
+        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
     fun If2(plotName: String): Boolean {
-        println("Entering If2 with token: $currentToken")
-        return when (currentToken.symbol) {
-            Symbol.IS -> {
-                nextToken()
-                IfIsValid(plotName)
-            }
-            Symbol.CONTAINS -> {
-                nextToken()
-                IfContains(plotName)
-            }
-            else -> {
-                semanticErrors.add("Invalid IF condition at ${currentToken.startRow}:${currentToken.startColumn}")
-                false
-            }
-        }
-    }
-
-    fun IfIsValid(plotName: String): Boolean {
-        println("Entering IfIsValid with token: $currentToken")
-        if (currentToken.symbol == Symbol.VALID) {
+        if (currentToken.symbol == Symbol.IS) {
             nextToken()
-            if (currentToken.symbol == Symbol.LCURLY) {
-                nextToken()
-                val body = mutableListOf<ASTNode>()
-                while (Statements()) {
-                    body.add(astNodes.removeAt(astNodes.size - 1))
-                }
-                if (currentToken.symbol == Symbol.RCURLY) {
-                    nextToken()
-                    astNodes.add(IfNode(IfIsValidNode(plotName), body))
-                    return true
-                }
-            }
-        }
-        semanticErrors.add("Invalid IF is valid statement at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
-    }
-
-    fun IfContains(plotName: String): Boolean {
-        println("Entering IfContains with token: $currentToken")
-        if (currentToken.symbol == Symbol.NAME) {
-            val workName = currentToken.lexeme
-            if (workName in declaredWorks) {
-                nextToken()
-                if (currentToken.symbol == Symbol.LCURLY) {
-                    nextToken()
-                    val body = mutableListOf<ASTNode>()
-                    while (Statements()) {
-                        body.add(astNodes.removeAt(astNodes.size - 1))
-                    }
-                    if (currentToken.symbol == Symbol.RCURLY) {
-                        nextToken()
-                        astNodes.add(IfNode(IfContainsNode(plotName, workName), body))
-                        println("Exiting IfContains with success")
-                        return true
-                    } else {
-                        semanticErrors.add("Expected '}' at ${currentToken.startRow}:${currentToken.startColumn}")
-                    }
-                } else {
-                    semanticErrors.add("Expected '{' after work name at ${currentToken.startRow}:${currentToken.startColumn}")
-                }
-            } else {
-                semanticErrors.add("Referenced undeclared work in IF statement at ${currentToken.startRow}:${currentToken.startColumn}")
-            }
-        } else {
-            semanticErrors.add("Expected work name in IF contains statement at ${currentToken.startRow}:${currentToken.startColumn}")
-        }
-        println("Exiting IfContains with failure")
-        return false
-    }
-
-    fun Function(): Boolean {
-        println("Entering Function with token: $currentToken")
-        val functionName = currentToken.lexeme
-        nextToken()
-        if (currentToken.symbol == Symbol.LPAREN) {
-            nextToken()
-            if (currentToken.symbol == Symbol.NAME) {
-                val firstParam = currentToken.lexeme
-                nextToken()
-                if (currentToken.symbol == Symbol.COMMA) {
-                    nextToken()
-                    if (currentToken.symbol == Symbol.NAME) {
-                        val secondParam = currentToken.lexeme
-                        nextToken()
-                        if (currentToken.symbol == Symbol.RPAREN) {
-                            val validParams = when (functionName) {
-                                "CalculateEfficiency", "CalculatePath" -> firstParam in declaredPlots && secondParam in declaredWorks
-                                else -> {
-                                    semanticErrors.add("Unknown function $functionName at ${currentToken.startRow}:${currentToken.startColumn}")
-                                    false
-                                }
-                            }
-                            if (validParams) {
-                                nextToken()
-                                println("Function $functionName processed successfully")
-                                astNodes.add(FunctionCallNode(functionName, listOf(firstParam, secondParam)))
-                                return true
-                            } else {
-                                semanticErrors.add("Invalid parameters for function $functionName at ${currentToken.startRow}:${currentToken.startColumn}")
-                            }
-                        } else {
-                            semanticErrors.add("Expected ')' at ${currentToken.startRow}:${currentToken.startColumn}")
-                        }
-                    } else {
-                        semanticErrors.add("Expected second parameter name at ${currentToken.startRow}:${currentToken.startColumn}")
-                    }
-                } else if (currentToken.symbol == Symbol.RPAREN) {
-                    val validParams = when (functionName) {
-                        "CalculateArea" -> firstParam in declaredPlots
-                        "CalculateAverageSpeed", "CalculateAreaCovered" -> firstParam in declaredWorks
-                        else -> {
-                            semanticErrors.add("Unknown function $functionName at ${currentToken.startRow}:${currentToken.startColumn}")
-                            false
-                        }
-                    }
-                    if (validParams) {
-                        nextToken()
-                        println("Function $functionName processed successfully")
-                        astNodes.add(FunctionCallNode(functionName, listOf(firstParam)))
-                        return true
-                    } else {
-                        semanticErrors.add("Invalid parameters for function $functionName at ${currentToken.startRow}:${currentToken.startColumn}")
-                    }
-                } else {
-                    semanticErrors.add("Expected ',' or ')' at ${currentToken.startRow}:${currentToken.startColumn}")
-                }
-            } else {
-                semanticErrors.add("Expected first parameter name at ${currentToken.startRow}:${currentToken.startColumn}")
-            }
-        } else {
-            semanticErrors.add("Expected '(' after function name at ${currentToken.startRow}:${currentToken.startColumn}")
-        }
-        println("Exiting Function with failure")
-        return false
-    }
-
-    fun VariableAssignment(): Boolean {
-        println("Entering VariableAssignment with token: $currentToken")
-        if (currentToken.symbol == Symbol.VARIABLE) {
-            val varName = currentToken.lexeme
-            nextToken()
-            if (currentToken.symbol == Symbol.EQUALS) {
-                nextToken()
-                val expr = expr() ?: return false
-                declaredVariables.add(varName)
-                astNodes.add(VariableAssignmentNode(varName, expr))
+            if(IfIsValid(plotName)) {
                 return true
             }
         }
-        semanticErrors.add("Invalid variable assignment at ${currentToken.startRow}:${currentToken.startColumn}")
-        return false
+        if (currentToken.symbol == Symbol.CONTAINS) {
+            nextToken()
+            if (IfContains(plotName)) {
+                return true
+            }
+        }
+        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun expr(): ExprNode? {
-        println("Entering expr with token: $currentToken")
+    fun IfIsValid(plotName: String): Boolean {
+        if (currentToken.symbol == Symbol.VALID) {
+            nextToken()
+            if(currentToken.symbol == Symbol.LCURLY) {
+                nextToken()
+                val statements = mutableListOf<Expr>()
+                if (Statements()) {
+                    if(currentToken.symbol == Symbol.RCURLY) {
+                        nextToken()
+                        IfExpr("isValid",statements).eval(env)
+                        return true
+                    }
+                }
+            }
+        }
+        throw IllegalStateException("Encountered invalid token: $currentToken")
+    }
+
+    fun IfContains(plotName: String): Boolean {
+        if (currentToken.symbol == Symbol.NAME) {
+            val name = currentToken.lexeme
+            nextToken()
+            if(currentToken.symbol == Symbol.LCURLY) {
+                nextToken()
+                val statements = mutableListOf<Expr>()
+                if (Statements()) {
+                    if(currentToken.symbol == Symbol.RCURLY) {
+                        nextToken()
+                        IfExpr("contains", statements).eval(env)
+                        return true
+                    }
+                }
+            }
+        }
+        throw IllegalStateException("Encountered invalid token: $currentToken")
+    }
+
+    fun Function(): Boolean {
+        if (currentToken.symbol == Symbol.CALCULATE_PATH) {
+            nextToken()
+            if (currentToken.symbol == Symbol.LPAREN) {
+                nextToken()
+                if (currentToken.symbol == Symbol.NAME) {
+                    val arg1 = currentToken.lexeme
+                    nextToken()
+                    if (currentToken.symbol == Symbol.COMMA) {
+                        nextToken()
+                        if (currentToken.symbol == Symbol.NAME) {
+                            val arg2 = currentToken.lexeme
+                            nextToken()
+                            if (currentToken.symbol == Symbol.RPAREN) {
+                                nextToken()
+                                FunctionCallExpr("calculatePath", listOf(arg1,arg2)).eval(env)
+                                return true
+                            }
+                        }
+                    }
+                }
+            }
+            throw IllegalStateException("Encountered invalid token: $currentToken")
+        }
+        if (currentToken.symbol == Symbol.CALCULATE_AREA) {
+            nextToken()
+            if (currentToken.symbol == Symbol.LPAREN) {
+                nextToken()
+                if (currentToken.symbol == Symbol.NAME) {
+                    val arg = currentToken.lexeme
+                    nextToken()
+                    if (currentToken.symbol == Symbol.RPAREN) {
+                        nextToken()
+                        FunctionCallExpr("calculateArea", listOf(arg)).eval(env)
+                        return true
+                    }
+                }
+            }
+            throw IllegalStateException("Encountered invalid token: $currentToken")
+        }
+        if (currentToken.symbol == Symbol.CALCULATE_AREA_COVERED) {
+            nextToken()
+            if (currentToken.symbol == Symbol.LPAREN) {
+                nextToken()
+                if (currentToken.symbol == Symbol.NAME) {
+                    val arg = currentToken.lexeme
+                    nextToken()
+                    if (currentToken.symbol == Symbol.RPAREN) {
+                        nextToken()
+                        FunctionCallExpr("calculateAreaCovered", listOf(arg)).eval(env)
+                        return true
+                    }
+                }
+            }
+            throw IllegalStateException("Encountered invalid token: $currentToken")
+        }
+        if (currentToken.symbol == Symbol.CALCULATE_AVERAGE_SPEED) {
+            nextToken()
+            if (currentToken.symbol == Symbol.LPAREN) {
+                nextToken()
+                if (currentToken.symbol == Symbol.NAME) {
+                    val arg = currentToken.lexeme
+                    nextToken()
+                    if (currentToken.symbol == Symbol.RPAREN) {
+                        nextToken()
+                        FunctionCallExpr("calculateAverageSpeed", listOf(arg)).eval(env)
+                        return true
+                    }
+                }
+            }
+            throw IllegalStateException("Encountered invalid token: $currentToken")
+        }
+        if (currentToken.symbol == Symbol.CALCULATE_EFFICIENCY) {
+            nextToken()
+            if (currentToken.symbol == Symbol.LPAREN) {
+                nextToken()
+                if (currentToken.symbol == Symbol.NAME) {
+                    val arg1 = currentToken.lexeme
+                    nextToken()
+                    if (currentToken.symbol == Symbol.COMMA) {
+                        nextToken()
+                        if (currentToken.symbol == Symbol.NAME) {
+                            val arg2 = currentToken.lexeme
+                            nextToken()
+                            if (currentToken.symbol == Symbol.RPAREN) {
+                                nextToken()
+                                FunctionCallExpr("calculateEfficiency", listOf(arg1,arg2)).eval(env)
+                                return true
+                            }
+                        }
+                    }
+                }
+            }
+            throw IllegalStateException("Encountered invalid token: $currentToken")
+        }
+        return false
+    }
+    fun VariableAssigment(): Boolean {
+        val variable = currentToken.lexeme
+        println("variable " + variable)
+        nextToken()
+        if (currentToken.symbol == Symbol.EQUALS) {
+            nextToken()
+            val value = (expr().eval(env) as Double)
+            VariableAssignmentExpr(variable, value).eval(env)
+            return true
+        }
+        throw IllegalStateException("Encountered invalid token: $currentToken")
+    }
+
+    fun expr(): Expr {
         return additive()
     }
 
-    fun additive(): ExprNode? {
-        println("Entering additive with token: $currentToken")
-        var left = multiplicative() ?: return null
+    fun additive(): Expr {
+        var expr = multiplicative()
         while (currentToken.symbol == Symbol.PLUS || currentToken.symbol == Symbol.MINUS) {
-            val op = currentToken.lexeme
+            val operator = currentToken.symbol
             nextToken()
-            val right = multiplicative() ?: return null
-            left = BinaryOpNode(left, op, right)
+            val rightExpr = multiplicative()
+            expr = if (operator == Symbol.PLUS) {
+                PlusExpr(expr, rightExpr)
+            } else {
+                MinusExpr(expr, rightExpr)
+            }
         }
-        return left
+        return expr
     }
 
-    fun multiplicative(): ExprNode? {
-        println("Entering multiplicative with token: $currentToken")
-        var left = exponential() ?: return null
+    fun multiplicative(): Expr {
+        var expr = exponential()
         while (currentToken.symbol == Symbol.MULTIPLY || currentToken.symbol == Symbol.DIVIDE) {
-            val op = currentToken.lexeme
+            val operator = currentToken.symbol
             nextToken()
-            val right = exponential() ?: return null
-            left = BinaryOpNode(left, op, right)
+            val rightExpr = exponential()
+            expr = if (operator == Symbol.MULTIPLY) {
+                TimesExpr(expr, rightExpr)
+            } else {
+                DivideExpr(expr, rightExpr)
+            }
         }
-        return left
+        return expr
     }
 
-    fun exponential(): ExprNode? {
-        println("Entering exponential with token: $currentToken")
-        var left = unary() ?: return null
+    fun exponential(): Expr {
+        var expr = unary()
         while (currentToken.symbol == Symbol.POW) {
-            val op = currentToken.lexeme
             nextToken()
-            val right = unary() ?: return null
-            left = BinaryOpNode(left, op, right)
+            val rightExpr = unary()
+            expr = PowExpr(expr, rightExpr)
         }
-        return left
+        return expr
     }
 
-    fun unary(): ExprNode? {
-        println("Entering unary with token: $currentToken")
+    fun unary(): Expr {
         return if (currentToken.symbol == Symbol.PLUS || currentToken.symbol == Symbol.MINUS) {
-            val op = currentToken.lexeme
+            val operator = currentToken.symbol
             nextToken()
-            val expr = primary() ?: return null
-            UnaryOpNode(op, expr)
+            val rightExpr = primary()
+            if (operator == Symbol.MINUS) {
+                UnaryMinusExpr(rightExpr)
+            } else {
+                rightExpr
+            }
         } else {
             primary()
         }
     }
 
-    fun primary(): ExprNode? {
-        println("Entering primary with token: $currentToken")
-        return when (currentToken.symbol) {
-            Symbol.REAL -> {
+    fun primary(): Expr {
+        return when {
+            currentToken.symbol == Symbol.REAL -> {
                 val value = currentToken.lexeme.toDouble()
                 nextToken()
-                RealNode(value)
+                RealExpr(value)
             }
-            Symbol.VARIABLE -> {
-                val varName = currentToken.lexeme
-                if (varName in declaredVariables) {
-                    nextToken()
-                    VariableNode(varName)
-                } else {
-                    semanticErrors.add("Undeclared variable '$varName' used at ${currentToken.startRow}:${currentToken.startColumn}")
-                    null
-                }
-            }
-            Symbol.LPAREN -> {
+            currentToken.symbol == Symbol.VARIABLE -> {
+                val variable = currentToken.lexeme
                 nextToken()
-                val expr = additive() ?: return null
+                VarExpr(variable)
+            }
+            currentToken.symbol == Symbol.LPAREN -> {
+                nextToken()
+                val expr = additive()
                 if (currentToken.symbol == Symbol.RPAREN) {
                     nextToken()
                     expr
                 } else {
-                    semanticErrors.add("Expected ')' at ${currentToken.startRow}:${currentToken.startColumn}")
-                    null
+                    throw IllegalStateException("Expected closing parenthesis but found: $currentToken")
                 }
             }
-            else -> null
+            else -> throw IllegalStateException("Encountered invalid token: $currentToken")
         }
-    }
-
-    fun getSemanticErrors(): List<String> {
-        return semanticErrors
-    }
-
-    fun getASTNodes(): List<ASTNode> {
-        return astNodes
     }
 }
 
 fun main() {
-    val file = File("semantika_tests/05.txt")
+    var result = false
+    val file = File("syntax_analyzer_tests/good/03.txt")
     try {
-        val analyzer = SemanticAnalyzer(Scanner(Lexicon, file.inputStream()))
-        val result = analyzer.parse()
-        if (analyzer.getSemanticErrors().isEmpty()) {
-            println("No error")
-            println("Is correct: $result")
-            println("AST Nodes: ${analyzer.getASTNodes()}")
-        } else {
-            println("Semantic errors found:")
-            analyzer.getSemanticErrors().forEach { println(it) }
-        }
+        result = SemanticAnalyzer(Scanner(Lexicon, file.inputStream())).parse()
+        println("No error")
     } catch (e: Exception) {
-        println("Error: ${e.message}")
+        println("Error")
+        println(e)
     }
+    println("Is correct: $result")
 }
