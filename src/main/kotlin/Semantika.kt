@@ -4,6 +4,7 @@ import java.awt.Desktop.Action
 import java.beans.Expression
 import java.io.File
 import kotlin.math.exp
+import kotlin.time.Duration.Companion.milliseconds
 
 enum class PlotType{
     FOREST, FIELD, UNDEFINED
@@ -11,6 +12,7 @@ enum class PlotType{
 abstract class Expr {
     abstract fun eval(env: MutableMap<String, Any>): Any
 }
+
 
 data class PlotExpr(
     var name: String,
@@ -33,6 +35,7 @@ data class PlotExpr(
 data class WorkExpr(
     var name: String,
     var path: MutableList<Pair<Double, Double>>,
+    var timestamps: MutableList<String>,
     var action: String,
     var maxSpeed: Double,
     var implementWidth: Double,
@@ -41,23 +44,34 @@ data class WorkExpr(
     override fun eval(env: MutableMap<String, Any>): Any {
         val plots = env["plots"] as MutableMap<String, PlotExpr>
         if (plot !in plots) {
-            throw IllegalStateException("Work $name references undefined plot $plot.")
+            throw IllegalStateException("Work $name references undefined plot or it's undefined.")
         }
-        if (path.isEmpty()) {
-            throw IllegalStateException("Work $name has no path defined.")
+        if(implementWidth <= 0){
+            throw IllegalStateException("Work $name has no implemented width, or it's 0 or less.")
+
         }
-        if (maxSpeed <= 0) {
-            throw IllegalStateException("Work $name has an invalid max speed.")
+        if(action.isEmpty()){
+            throw IllegalStateException("Work $name has no action.")
         }
+        env["works"] = (env["works"] as MutableMap<String, WorkExpr>).apply { put(name, this@WorkExpr) }
         println("Defined work $name on plot $plot with action $action")
         return this
     }
 }
 
-data class IfExpr(val condition: String, val statements: List<Expr>) : Expr() {
+
+
+data class IfExpr(val condition: String, val statements: List<String>) : Expr() {
     override fun eval(env: MutableMap<String, Any>): Any {
         println("Evaluating if condition $condition")
-        statements.forEach { it.eval(env) }
+        println(statements)
+        val plots = env["plots"] as MutableMap<String, PlotExpr>
+        if(condition == "isValid"){
+            if(statements[0] !in plots){
+                throw IllegalStateException("$statements is not valid!")
+            }
+        }
+        // TODO ifContains, samo nevem kak
         return this
     }
 }
@@ -72,8 +86,25 @@ data class VariableAssignmentExpr(val variable: String, val value: Double) : Exp
 
 data class FunctionCallExpr(val name: String, val args: List<String>) : Expr() {
     override fun eval(env: MutableMap<String, Any>): Any {
+        val works = env["works"] as MutableMap<String, WorkExpr>
+        val plots = env["plots"] as MutableMap<String, PlotExpr>
         println("Calling function $name with arguments $args")
-        // LOGIKA FUNKCIJ
+        //TODO Kaj naj se tu zgodi? In kako se naj to zračuna?
+        if(name == "calculateAverageSpeed" || name == "calculateAreaCovered"){
+            if (args[0] !in works){
+                throw IllegalStateException("Function $name has invalid parameters.")
+            }
+        }
+        else if(name == "calculateArea"){
+            if (args[0] !in plots){
+                throw IllegalStateException("Function $name has invalid parameters.")
+            }
+        }
+        else{
+            if(args[0] !in plots && args[1] !in works){
+                throw IllegalStateException("Function $name has invalid parameters.")
+            }
+        }
         return this
     }
 }
@@ -128,7 +159,10 @@ class Ref<T>(var value: T)
 
 class SemanticAnalyzer(private val scanner: Scanner) {
     private var currentToken: Token = scanner.getToken()
-    private val env = mutableMapOf<String, Any>("plots" to mutableMapOf<String, PlotExpr>())
+    private val env = mutableMapOf<String, Any>(
+        "plots" to mutableMapOf<String, PlotExpr>(),
+        "works" to mutableMapOf<String, WorkExpr>()
+    )
 
     fun nextToken(): Token {
         currentToken = scanner.getToken()
@@ -298,119 +332,169 @@ class SemanticAnalyzer(private val scanner: Scanner) {
             if (currentToken.symbol == Symbol.LCURLY) {
                 nextToken()
                 val path = mutableListOf<Pair<Double,Double>>()
+                val timestamps = mutableListOf<String>()
                 var action = Ref("")
                 var maxSpeed = Ref(0.0)
                 var implementWidth = Ref(0.0)
                 var plot = Ref("")
-                if(WorkBody(path,action,maxSpeed,implementWidth,plot)) {
+                if(WorkBody(path, timestamps, action, maxSpeed, implementWidth, plot)) {
                     if (currentToken.symbol == Symbol.RCURLY) {
                         nextToken()
-                        WorkExpr(workName, path, action.value, maxSpeed.value, implementWidth.value, plot.value)
+                        WorkExpr(workName, path, timestamps, action.value, maxSpeed.value, implementWidth.value, plot.value).eval(env)
                         return true
+                    } else {
+                        throw IllegalStateException("Expected RCURLY but found: $currentToken")
                     }
+                } else {
+                    throw IllegalStateException("Invalid WorkBody structure.")
                 }
+            } else {
+                throw IllegalStateException("Expected LCURLY but found: $currentToken")
             }
         }
-        throw IllegalStateException("Encountered invalid token: $currentToken")
+        throw IllegalStateException("Expected NAME but found: $currentToken")
     }
 
-    fun WorkBody(path: MutableList<Pair<Double,Double>>, action: Ref<String>,maxSpeed: Ref<Double>, implementWidth: Ref<Double>, plot: Ref<String>): Boolean {
-        if (WorkBody2(path, action, maxSpeed, implementWidth, plot)) {
-            if (currentToken.symbol == Symbol.COMMA) {
+    fun WorkBody(path: MutableList<Pair<Double,Double>>, timestamps: MutableList<String>, action: Ref<String>, maxSpeed: Ref<Double>, implementWidth: Ref<Double>, plot: Ref<String>): Boolean {
+        if (WorkBody2(path, timestamps, action, maxSpeed, implementWidth, plot)) {
+            while (currentToken.symbol == Symbol.COMMA) {
                 nextToken()
-                return WorkBody(path, action, maxSpeed, implementWidth, plot)
+                if (!WorkBody2(path, timestamps, action, maxSpeed, implementWidth, plot)) {
+                    throw IllegalStateException("Invalid token in WorkBody: $currentToken")
+                }
             }
             return true
         }
-        throw IllegalStateException("Encountered invalid token: $currentToken")
+        throw IllegalStateException("Encountered invalid token in WorkBody: $currentToken")
     }
 
-    fun WorkBody2(path: MutableList<Pair<Double,Double>>, action: Ref<String>,maxSpeed: Ref<Double>, implementWidth: Ref<Double>, plot: Ref<String>): Boolean {
-        if(currentToken.symbol == Symbol.PATH) {
-            nextToken()
-            if (Path(path)) {
-                return true
+    fun WorkBody2(path: MutableList<Pair<Double,Double>>, timestamps: MutableList<String>, action: Ref<String>, maxSpeed: Ref<Double>, implementWidth: Ref<Double>, plot: Ref<String>): Boolean {
+        //println("Current token in WorkBody2: $currentToken")
+        return when {
+            currentToken.symbol == Symbol.PATH -> {
+                nextToken()
+                if (Path(path, timestamps)) {
+                    true
+                } else {
+                    throw IllegalStateException("Invalid PATH structure.")
+                }
             }
-        }
-        if(currentToken.symbol == Symbol.ACTION) {
-            nextToken()
-            if (Action(action)) {
-                return true
+            currentToken.symbol == Symbol.ACTION -> {
+                nextToken()
+                if (Action(action)) {
+                    true
+                } else {
+                    throw IllegalStateException("Invalid ACTION structure.")
+                }
             }
-        }
-        if(currentToken.symbol == Symbol.MAX_SPEED) {
-            nextToken()
-            if (MaxSpeed(maxSpeed)) {
-                return true
+            currentToken.symbol == Symbol.MAX_SPEED -> {
+                nextToken()
+                if (MaxSpeed(maxSpeed)) {
+                    true
+                } else {
+                    throw IllegalStateException("Invalid MAX_SPEED structure.")
+                }
             }
-        }
-        if(currentToken.symbol == Symbol.IMPLEMENT_WIDTH) {
-            nextToken()
-            if (ImplementWidth(implementWidth)) {
-                return true
+            currentToken.symbol == Symbol.IMPLEMENT_WIDTH -> {
+                nextToken()
+                if (ImplementWidth(implementWidth)) {
+                    //println("Finished processing implement-width, current token: $currentToken")
+                    true
+                } else {
+                    throw IllegalStateException("Invalid IMPLEMENT_WIDTH structure.")
+                }
             }
-        }
-        if(currentToken.symbol == Symbol.PLOT) {
-            nextToken()
-            if (WorkPlot(plot)) {
-                return true
+            currentToken.symbol == Symbol.PLOT -> {
+                nextToken()
+                if (WorkPlot(plot)) {
+                    true
+                } else {
+                    throw IllegalStateException("Invalid PLOT structure.")
+                }
             }
+            else -> false
         }
-        return false
     }
 
-    fun Path(path: MutableList<Pair<Double,Double>>): Boolean {
+    fun Path(path: MutableList<Pair<Double,Double>>, timestamps: MutableList<String>): Boolean {
         if(currentToken.symbol == Symbol.COLON) {
             nextToken()
             if(currentToken.symbol == Symbol.LSQUARE) {
                 nextToken()
-                if(Pointts(path)) {
+                if(Pointts(path, timestamps)) {
                     if(currentToken.symbol == Symbol.RSQUARE) {
                         nextToken()
                         return true
+                    } else {
+                        throw IllegalStateException("Expected RSQUARE but found: $currentToken")
                     }
+                } else {
+                    throw IllegalStateException("Invalid POINTTS structure.")
                 }
+            } else {
+                throw IllegalStateException("Expected LSQUARE but found: $currentToken")
             }
+        } else {
+            throw IllegalStateException("Expected COLON but found: $currentToken")
         }
-        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Pointts(path: MutableList<Pair<Double,Double>>): Boolean {
-        if (Pointt(path)) {
-            if (currentToken.symbol == Symbol.COMMA) {
+    fun Pointts(path: MutableList<Pair<Double,Double>>, timestamps: MutableList<String>): Boolean {
+        if (Pointt(path, timestamps)) {
+            while (currentToken.symbol == Symbol.COMMA) {
                 nextToken()
-                return Pointts(path)
+                if (!Pointt(path, timestamps)) {
+                    throw IllegalStateException("Invalid token in POINTTS: $currentToken")
+                }
             }
             return true
         }
-        throw IllegalStateException("Encountered invalid token: $currentToken")
+        throw IllegalStateException("Encountered invalid token in POINTTS: $currentToken")
     }
 
-    fun Pointt(path: MutableList<Pair<Double,Double>>): Boolean {
+    fun Pointt(path: MutableList<Pair<Double, Double>>, timestamps: MutableList<String>): Boolean {
         if (currentToken.symbol == Symbol.POINTT) {
             nextToken()
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
                 val x = (expr().eval(env) as Double)
+                if (currentToken.symbol == Symbol.COMMA) {
+                    nextToken()
+                    val y = (expr().eval(env) as Double)
                     if (currentToken.symbol == Symbol.COMMA) {
                         nextToken()
-                        val y = (expr().eval(env) as Double)
+                        //println("Current token before timestamp: $currentToken")
+                        val timestamp = currentToken.lexeme
+                        if (currentToken.symbol == Symbol.TIMESTAMP) {
+                            nextToken()
+                            //println("Current token after timestamp: $currentToken")
                             if (currentToken.symbol == Symbol.COMMA) {
+                                //println("Found COMMA after TIMESTAMP, moving to next token.")
                                 nextToken()
-                                val timestamp = currentToken.lexeme.toLong()
-                                if(currentToken.symbol == Symbol.TIMESTAMP) {
-                                    nextToken()
-                                    if (currentToken.symbol == Symbol.RPAREN) {
-                                        nextToken()
-                                        path.add(Pair(x,y))
-                                        return true
-                                    }
-                                }
                             }
+                            if (currentToken.symbol == Symbol.RPAREN) {
+                                nextToken()
+                                path.add(Pair(x, y))
+                                timestamps.add(timestamp)
+                                return true
+                            } else {
+                                throw IllegalStateException("Expected RPAREN but found: $currentToken")
+                            }
+                        } else {
+                            throw IllegalStateException("Expected TIMESTAMP but found: $currentToken")
+                        }
+                    } else {
+                        throw IllegalStateException("Expected COMMA after y-coordinate but found: $currentToken")
                     }
+                } else {
+                    throw IllegalStateException("Expected COMMA after x-coordinate but found: $currentToken")
+                }
+            } else {
+                throw IllegalStateException("Expected LPAREN but found: $currentToken")
             }
+        } else {
+            throw IllegalStateException("Expected POINTT but found: $currentToken")
         }
-        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
     fun Action(action: Ref<String>): Boolean {
@@ -438,8 +522,10 @@ class SemanticAnalyzer(private val scanner: Scanner) {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
             implementWidth.value = (expr().eval(env) as Double)
+            //println("Evaluated implement-width: ${implementWidth.value}")
+            return true
         }
-        throw IllegalStateException("Encountered invalid token: $currentToken")
+        throw IllegalStateException("Encountered invalid token in ImplementWidth: $currentToken")
     }
 
     fun WorkPlot(plot: Ref<String>): Boolean {
@@ -487,7 +573,7 @@ class SemanticAnalyzer(private val scanner: Scanner) {
             nextToken()
             if(currentToken.symbol == Symbol.LCURLY) {
                 nextToken()
-                val statements = mutableListOf<Expr>()
+                var statements: List<String> = listOf(plotName)
                 if (Statements()) {
                     if(currentToken.symbol == Symbol.RCURLY) {
                         nextToken()
@@ -506,7 +592,7 @@ class SemanticAnalyzer(private val scanner: Scanner) {
             nextToken()
             if(currentToken.symbol == Symbol.LCURLY) {
                 nextToken()
-                val statements = mutableListOf<Expr>()
+                val statements = listOf(plotName, name)
                 if (Statements()) {
                     if(currentToken.symbol == Symbol.RCURLY) {
                         nextToken()
@@ -717,7 +803,7 @@ class SemanticAnalyzer(private val scanner: Scanner) {
 
 fun main() {
     var result = false
-    val file = File("syntax_analyzer_tests/good/03.txt")
+    val file = File("syntax_analyzer_tests/good/05.txt")
     try {
         result = SemanticAnalyzer(Scanner(Lexicon, file.inputStream())).parse()
         println("No error")
