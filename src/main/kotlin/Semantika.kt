@@ -94,15 +94,26 @@ data class FunctionCallExpr(val name: String, val args: List<String>) : Expr() {
             if (args[0] !in works){
                 throw IllegalStateException("Function $name has invalid parameters.")
             }
+            if(name == "calculateAverageSpeed" ){
+                //TODO calculateAverageSpeed
+            }else{
+                //TODO calculateAreaCovered
+            }
         }
         else if(name == "calculateArea"){
             if (args[0] !in plots){
                 throw IllegalStateException("Function $name has invalid parameters.")
             }
+            //TODO calculateArea
         }
         else{
             if(args[0] !in plots && args[1] !in works){
                 throw IllegalStateException("Function $name has invalid parameters.")
+            }
+            if(name == "calculateEfficency"){
+                //TODO calculateAverageSpeed
+            }else{
+                //TODO calculatePath
             }
         }
         return this
