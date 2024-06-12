@@ -13,6 +13,9 @@ data class PlotExpr(
         if (coordinates.isEmpty()) {
             throw IllegalStateException("Plot $name has no coordinates.")
         }
+        if(coordinates.size < 4){
+            throw IllegalStateException("Plot $name has 3 or less coordinates.")
+        }
         if (type == PlotType.UNDEFINED) {
             throw IllegalStateException("Plot $name has an undefined type.")
         }
@@ -39,6 +42,9 @@ data class WorkExpr(
         }
         if(action.isEmpty()){
             throw IllegalStateException("Work $name has no action.")
+        }
+        if(path.isEmpty()){
+            println("Path is empty, calculating with calculate path")
         }
         env["works"] = (env["works"] as MutableMap<String, WorkExpr>).apply { put(name, this@WorkExpr) }
         println("Defined work $name on plot $plot with action $action")
@@ -101,15 +107,16 @@ data class FunctionCallExpr(val name: String, val args: List<String>) : Expr() {
         val works = env["works"] as MutableMap<String, WorkExpr>
         val plots = env["plots"] as MutableMap<String, PlotExpr>
         println("Calling function $name with arguments $args")
+        println(env)
         if(name == "calculateAverageSpeed" || name == "calculateAreaCovered"){
             if (args[0] !in works){
                 throw IllegalStateException("Function $name has invalid parameters.")
             }
+            var work = works[args[0]]
             if(name == "calculateAverageSpeed" ){
-
-                //TODO calculateAverageSpeed
+                calculateAverageSpeed(work)
             }else{
-                //TODO calculateAreaCovered
+                calculateAreaCovered(work)
             }
         }
         else if(name == "calculateArea"){
@@ -124,10 +131,12 @@ data class FunctionCallExpr(val name: String, val args: List<String>) : Expr() {
             if(args[0] !in plots && args[1] !in works){
                 throw IllegalStateException("Function $name has invalid parameters.")
             }
+            var plot = plots[args[0]]
+            var work = works[args[1]]
             if(name == "calculateEfficency"){
-                //TODO calculateEfficency
+                calculateEfficency(plot,work)
             }else{
-                //TODO calculatePath
+                calculatePath(plot,work)
             }
         }
         return this

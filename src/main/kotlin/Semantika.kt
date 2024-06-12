@@ -6,9 +6,7 @@ import java.io.File
 import kotlin.math.exp
 import kotlin.time.Duration.Companion.milliseconds
 
-fun toGeoJson(env: MutableMap<String, Any>){
-    println(env)
-}
+
 
 
 class SemanticAnalyzer(private val scanner: Scanner) {
@@ -25,7 +23,9 @@ class SemanticAnalyzer(private val scanner: Scanner) {
 
     fun parse(): Boolean {
         if(Statements()){
-            toGeoJson(env)
+            val geoJson = convertToGeoJSONString(env)
+            println(env)
+            File("result.json").writeText(geoJson)
             return true
         }
         return false
@@ -660,7 +660,7 @@ class SemanticAnalyzer(private val scanner: Scanner) {
 
 fun main() {
     var result = false
-    val file = File("syntax_analyzer_tests/good/07.txt")
+    val file = File("semantika_tests/bad/02.txt")
     try {
         result = SemanticAnalyzer(Scanner(Lexicon, file.inputStream())).parse()
         println("No error")
