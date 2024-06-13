@@ -5,7 +5,9 @@ plot "Ime" {
   coordinates: [
     Point(100.0, 0.0),
     Point(101.0, 0.0),
-    Point(101.0, 1.0)
+    Point(101.0, 1.0),
+    Point(100.0, 1.0),
+    Point(100.0, 0.0)
   ],
   type: forest
 }
@@ -16,7 +18,6 @@ work "Sejanje koruze" {
     PointT(101.0, 0.0, 20240425T071759Z),
     PointT(101.0, 1.0, 20240425T071759Z)
   ],
-  action: "planting",
   max-speed: 8 + 1,
   implement-width: 4 - 1 - var_test,
   plot: "Ime"

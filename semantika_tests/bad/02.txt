@@ -1,0 +1,29 @@
+plot "Ime" {
+  coordinates: [
+    Point(100.0, 0.0),
+    Point(101.0, 0.0),
+    Point(101.0, 1.0),
+    Point(100.0, 1.0),
+    Point(100.0, 0.0)
+  ],
+  type: forest
+}
+
+work "Pluzenje" {
+  action: "plowing",
+  max-speed: 12,
+  plot: "Ime",
+  implement-width: 3
+}
+
+if plot "Ime" is valid {
+  CalculatePath("Ime", "Pluzenje")
+  CalculateArea("Ime")
+}
+
+if plot "Ime" contains "Sejanje koruze" {
+  CalculateEfficiency("Ime", "Sejanje koruze")
+}
+
+CalculateAverageSpeed("Sejanje koruze")
+CalculateAreaCovered("Sejanje koruze")
