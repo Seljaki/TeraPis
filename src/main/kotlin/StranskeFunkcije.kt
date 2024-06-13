@@ -131,6 +131,8 @@ fun calculateEfficency(plot: PlotExpr?, work: WorkExpr?) {
     val pathTime = work.path.size / work.maxSpeed
     val efficiency = pathTime / averageWorkTime
 
+    work.efficiency = efficiency
+
     println("Average work time: $averageWorkTime seconds")
     println("Path time: $pathTime seconds")
     println("Efficiency: $efficiency")
@@ -148,7 +150,8 @@ fun calculateAverageSpeed(work: WorkExpr?) {
     val totalDistance = work.path.zipWithNext { a, b -> distance(a, b) }.sum()
     val averageSpeed = totalDistance / totalTime
 
-    println("Average speed: $averageSpeed meters/second")
+    work.averageSpeed = averageSpeed
+    //println("Average speed: $averageSpeed meters/second")
 }
 
 fun calculateAreaCovered(work: WorkExpr?) {
@@ -157,8 +160,8 @@ fun calculateAreaCovered(work: WorkExpr?) {
         return
     }
 
-    val areaCovered = calculatePolygonArea(work.path)
-    println("Area covered: $areaCovered square meters")
+    work.areaCovered = calculatePolygonArea(work.path)
+    //println("Area covered: $areaCovered square meters")
 }
 
 fun distance(p1: Pair<Double, Double>, p2: Pair<Double, Double>): Double {
@@ -198,6 +201,11 @@ fun convertToGeoJSONString(env: Map<String, Any>): String {
                 "properties": {
                     "name": ${plot.name},
                     "type": "${plot.type.name.toLowerCase()}"
+                     ${if(plot.area != null)
+            ",\"efficiency\": ${plot.area}"
+        else
+            ""
+        }
                 }
             }
         """.trimIndent()
@@ -219,6 +227,21 @@ fun convertToGeoJSONString(env: Map<String, Any>): String {
                     "max-speed": ${work.maxSpeed},
                     "implement-width": ${work.implementWidth},
                     "plot": "${work.plot}"
+                    ${if(work.areaCovered != null)
+                        ",\"areaCovered\": ${work.areaCovered}"
+                    else
+                        ""
+                    }
+                    ${if(work.averageSpeed != null)
+            ",\"averageSpeed\": ${work.averageSpeed}"
+        else
+            ""
+        }
+        ${if(work.efficiency != null)
+            ",\"efficiency\": ${work.efficiency}"
+        else
+            ""
+        }
                 }
             }
         """.trimIndent()

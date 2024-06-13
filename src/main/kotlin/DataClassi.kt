@@ -7,7 +7,8 @@ abstract class Expr {
 data class PlotExpr(
     var name: String,
     var coordinates: MutableList<Pair<Double, Double>>,
-    var type: PlotType
+    var type: PlotType,
+    var area: Double? = null,
 ) : Expr() {
     override fun eval(env: MutableMap<String, Any>): Any {
         if (coordinates.isEmpty()) {
@@ -32,7 +33,10 @@ data class WorkExpr(
     var action: String,
     var maxSpeed: Double,
     var implementWidth: Double,
-    var plot: String
+    var plot: String,
+    var areaCovered: Double? = null,
+    var averageSpeed: Double? = null,
+    var efficiency: Double? = null
 ) : Expr() {
     override fun eval(env: MutableMap<String, Any>): Any {
         val plots = env["plots"] as MutableMap<String, PlotExpr>

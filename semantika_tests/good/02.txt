@@ -1,3 +1,5 @@
+var_test = 8 + 3
+
 plot "Plot 1" {
 coordinates: [
 Point(16.0511,46.4113),
@@ -32,9 +34,14 @@ type: field
 
 work "mowing" {
 action: "mowing",
-max-speed: 10,
+max-speed: var_test - 1,
 implement-width: 3
 }
+
+
 if plot "Plot 1" is valid {
+CalculateArea("Plot 1")
 CalculatePath("Plot 1", "mowing")
 }
+
+CalculateAreaCovered("mowing")

@@ -21,11 +21,11 @@ class SemanticAnalyzer(private val scanner: Scanner) {
         return currentToken
     }
 
-    fun parse(): Boolean {
+    fun parse(outputFilePath: String = "result.json"): Boolean {
         if(Statements()){
             val geoJson = convertToGeoJSONString(env)
             println(env)
-            File("result.json").writeText(geoJson)
+            File(outputFilePath).writeText(geoJson)
             return true
         }
         return false
