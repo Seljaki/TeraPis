@@ -660,7 +660,7 @@ class SemanticAnalyzer(private val scanner: Scanner) {
 
 fun main() {
     var result = false
-    val file = File("semantika_tests/bad/02.txt")
+    val file = File("semantika_tests/good/02.txt")
     try {
         result = SemanticAnalyzer(Scanner(Lexicon, file.inputStream())).parse()
         println("No error")

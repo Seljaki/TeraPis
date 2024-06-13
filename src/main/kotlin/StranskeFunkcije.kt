@@ -111,7 +111,8 @@ fun calculatePath(plot: PlotExpr?, work: WorkExpr?) {
         println("Plot or work is null")
         return
     }
-    work.path = plot.coordinates
+    work.path = generateBoustrophedonPath(plot.coordinates, work.implementWidth / 5000.0).toMutableList()
+    // = plot.coordinates
     println("Calculated path: ${work.path}")
 }
 
@@ -233,4 +234,55 @@ fun convertToGeoJSONString(env: Map<String, Any>): String {
     """.trimIndent()
 
     return geoJson
+}
+
+
+
+
+
+
+
+
+
+
+fun isPointInPolygon(point: Pair<Double, Double>, polygon: List<Pair<Double, Double>>): Boolean {
+    var result = false
+    val n = polygon.size
+    var j = n - 1
+    for (i in 0 until n) {
+        if ((polygon[i].second > point.second) != (polygon[j].second > point.second) &&
+            (point.first < (polygon[j].first - polygon[i].first) * (point.second - polygon[i].second) / (polygon[j].second - polygon[i].second) + polygon[i].first)) {
+            result = !result
+        }
+        j = i
+    }
+    return result
+}
+
+fun generateBoustrophedonPath(coordinates: List<Pair<Double, Double>>, width: Double): List<Pair<Double, Double>> {
+    if (coordinates.size < 4) throw IllegalArgumentException("At least four coordinates needed to define a field")
+
+    // Find the min and max coordinates to define the bounding box
+    val minX = coordinates.minByOrNull { it.first }!!.first
+    val maxX = coordinates.maxByOrNull { it.first }!!.first
+    val minY = coordinates.minByOrNull { it.second }!!.second
+    val maxY = coordinates.maxByOrNull { it.second }!!.second
+
+    val path = mutableListOf<Pair<Double, Double>>()
+    var currentX = minX
+    var moveRight = true
+
+    while (currentX <= maxX) {
+        if (moveRight) {
+            path.add(Pair(currentX, minY))
+            path.add(Pair(currentX, maxY))
+        } else {
+            path.add(Pair(currentX, maxY))
+            path.add(Pair(currentX, minY))
+        }
+        currentX += width
+        moveRight = !moveRight
+    }
+
+    return path
 }
