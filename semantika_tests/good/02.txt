@@ -1,6 +1,6 @@
-var_test = 8 + 3
+var_test = 3 - 8
 
-plot "Plot 1" {
+plot "Plot 2" {
 coordinates: [
 Point(16.0511,46.4113),
 Point(16.0513,46.4113),
@@ -35,13 +35,15 @@ type: field
 work "mowing" {
 action: "mowing",
 max-speed: var_test - 1,
-implement-width: 3
+implement-width: var_test
 }
 
 
-if plot "Plot 1" is valid {
-CalculateArea("Plot 1")
-CalculatePath("Plot 1", "mowing")
+if plot "Plot 2" is valid {
+CalculateArea("Plot 2")
+CalculatePath("Plot 2", "mowing")
 }
 
-CalculateAreaCovered("mowing")
+
+
+CalculateAverageSpeed("mowing")
