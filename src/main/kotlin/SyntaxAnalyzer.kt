@@ -24,7 +24,7 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
             val result = Statement()
             statements.add(result.second)
             if (!result.first)
-                return Pair(false, statements)
+                return Pair(true, statements)
         }
 
         return Pair(true, statements)
@@ -46,10 +46,7 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         if (currentToken.symbol == Symbol.VARIABLE) {
             val name = currentToken.lexeme;
             nextToken()
-            val result = VariableAssigment(name)
-            if(result.first) {
-                return VariableAssigment(name)
-            }
+            return VariableAssigment(name)
         }
         val functionResult = Function()
         if (functionResult.first) {
@@ -595,7 +592,7 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
 
 fun main() {
     var result = false
-    val file = File("syntax_analyzer_tests/good/02.txt")
+    val file = File("syntax_analyzer_tests/good/04.txt")
     try {
         val ast =  SyntaxAnalyzer(Scanner(Lexicon, file.inputStream())).parse()
         result = ast.first
