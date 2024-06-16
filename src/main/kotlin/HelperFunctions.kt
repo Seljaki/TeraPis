@@ -4,21 +4,7 @@ import java.text.SimpleDateFormat
 import kotlin.math.abs
 
 
-enum class PlotType{
-    FOREST, FIELD, UNDEFINED
-}
-fun ifContains(coordinates: MutableList<Pair<Double, Double>>, path: MutableList<Pair<Double, Double>>):Boolean{
-    val coordLength = coordinates.size
-    val pathLength = path.size
-    if (pathLength > coordLength) return false
-    for (i in 0..(coordLength - pathLength)) {
-        if (coordinates.subList(i, i + pathLength) == path) {
-            return true
-        }
-    }
 
-    return false
-}
 fun isValidCoordinates(coordinates: MutableList<Pair<Double, Double>>): Boolean {
     // Preveri, če ima seznam vsaj tri točke
     if (coordinates.size < 4) { // Za veljaven poligon potrebujemo vsaj tri točke in začetno enako končni točki
@@ -266,8 +252,6 @@ fun convertToGeoJSONString(env: Map<String, Any>): String {
 
 
 
-
-
 fun isPointInPolygon(point: Pair<Double, Double>, polygon: List<Pair<Double, Double>>): Boolean {
     var result = false
     val n = polygon.size
@@ -280,6 +264,20 @@ fun isPointInPolygon(point: Pair<Double, Double>, polygon: List<Pair<Double, Dou
         j = i
     }
     return result
+}
+
+fun isWorkInPlot(work: WorkExpr, plot: PlotExpr): Boolean {
+    if (work.plot == plot.name)
+        return true
+
+    for (point in work.path) {
+        if(isPointInPolygon(point, plot.coordinates)) {
+            println("WORK IS IN PLOT POLYGON")
+            return true
+        }
+    }
+
+    return false
 }
 
 fun generateBoustrophedonPath(coordinates: List<Pair<Double, Double>>, width: Double): List<Pair<Double, Double>> {

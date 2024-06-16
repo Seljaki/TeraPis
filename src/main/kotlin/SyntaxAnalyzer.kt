@@ -48,9 +48,11 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
             }
         }
         if (currentToken.symbol == Symbol.VARIABLE) {
+            val name = currentToken.lexeme;
             nextToken()
-            if(VariableAssigment()) {
-                return true
+            val result = VariableAssigment(name)
+            if(result.first) {
+                return VariableAssigment(name)
             }
         }
         if (Function()) {
@@ -59,15 +61,16 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         return false
     }
 
-    fun PlotDefinition(): Boolean {
+    fun PlotDefinition(): Pair<Boolean, PlotDefinitionExpr> {
         if (currentToken.symbol == Symbol.NAME) {
+            val plot = Plot(currentToken.lexeme)
             nextToken()
             if (currentToken.symbol == Symbol.LCURLY) {
                 nextToken()
-                if(PlotBody()) {
+                if(PlotBody(plot)) {
                     if (currentToken.symbol == Symbol.RCURLY) {
                         nextToken()
-                        return true
+                        return Pair(true, PlotDefinitionExpr(plot))
                     }
                 }
             }
@@ -75,21 +78,23 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun PlotBody(): Boolean {
-        if (PlotBody2()) {
+    fun PlotBody(plot: Plot): Boolean {
+        if (PlotBody2(plot)) {
             if (currentToken.symbol == Symbol.COMMA) {
                 nextToken()
-                return PlotBody()
+                return PlotBody(plot)
             }
             return true
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun PlotBody2(): Boolean {
+    fun PlotBody2(plot: Plot): Boolean {
         if (currentToken.symbol == Symbol.COORDINATES) {
             nextToken()
-            if (Coordinates()) {
+            val result = Coordinates()
+            if (result.first) {
+                plot.coordinates = result.second
                 return true
             }
         }
@@ -102,7 +107,7 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Coordinates(): Boolean {
+    fun Coordinates(): Pair<Boolean, MutableList<Pair<Double, Double>>> {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
             if(currentToken.symbol == Symbol.LSQUARE) {
@@ -118,18 +123,18 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Points(): Boolean {
-        if (Point()) {
+    fun Points(points: MutableList<Pair<Double, Double>>): Boolean {
+        if (Point(points)) {
             if (currentToken.symbol == Symbol.COMMA) {
                 nextToken()
-                return Points()
+                return Points(points)
             }
             return true
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Point(): Boolean {
+    fun Point(points: MutableList<Pair<Double, Double>>): Boolean {
         if (currentToken.symbol == Symbol.POINT) {
             nextToken()
             if (currentToken.symbol == Symbol.LPAREN) {
@@ -467,70 +472,93 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         return false
     }
 
-    fun VariableAssigment(): Boolean {
+    fun VariableAssigment(variableName: String): Pair<Boolean, Assignment> {
         if (currentToken.symbol == Symbol.EQUALS) {
             nextToken()
-            if(expr()) {
-                return true
+            val result = expr()
+            if(result.first) {
+                return Pair(true, Assignment(variableName, result.second))
             }
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun expr(): Boolean {
+    fun expr(): Pair<Boolean, Expr>  {
         return additive()
     }
-    fun additive(): Boolean {
-        return multiplicative() && additive2()
+    fun additive(): Pair<Boolean, Expr>  {
+        val result = multiplicative()
+        return additive2(result.second)
     }
-    fun additive2(): Boolean {
-        if(currentToken.symbol == Symbol.PLUS || currentToken.symbol == Symbol.MINUS) {
+    fun additive2(inVal: Expr): Pair<Boolean, Expr>  {
+        if(currentToken.symbol == Symbol.PLUS) {
             nextToken()
-            return multiplicative() && additive2()
-        }
-        return true
-    }
-    fun multiplicative(): Boolean {
-        return exponential() && multiplicative2()
-    }
-    fun multiplicative2(): Boolean {
-        if(currentToken.symbol == Symbol.MULTIPLY || currentToken.symbol == Symbol.DIVIDE) {
+            val plus = plus(inVal, multiplicative().second)
+            return additive2(plus)
+        } else if(currentToken.symbol == Symbol.MINUS) {
             nextToken()
-            return exponential() && multiplicative2()
+            val minus = minus(inVal, multiplicative().second)
+            return additive2(minus)
         }
-        return true
+        return Pair(true, inVal)
     }
-    fun exponential(): Boolean {
-        return unary() && exponential2()
+    fun multiplicative(): Pair<Boolean, Expr>  {
+        val result = exponential()
+        return multiplicative2(result.second)
     }
-    fun exponential2(): Boolean {
+    fun multiplicative2(inVal: Expr): Pair<Boolean, Expr>  {
+        if(currentToken.symbol == Symbol.MULTIPLY) {
+            nextToken()
+            val result = times(inVal, exponential().second)
+            return multiplicative2(result)
+        } else if( currentToken.symbol == Symbol.DIVIDE) {
+            nextToken()
+            val result = divides(inVal, exponential().second)
+            return multiplicative2(result)
+        }
+
+        return Pair(true, inVal)
+    }
+    fun exponential(): Pair<Boolean, Expr>  {
+        val result = unary()
+        return exponential2(result.second)
+    }
+    fun exponential2(inVal: Expr): Pair<Boolean, Expr>  {
         if (currentToken.symbol == Symbol.POW) {
             nextToken()
-            return unary() && exponential2()
+            val result = exponential2(unary().second)
+            return Pair(result.first, pow(inVal, result.second))
         }
-        return true
+        return Pair(true, inVal)
     }
-    fun unary(): Boolean {
-        if (currentToken.symbol == Symbol.PLUS || currentToken.symbol == Symbol.MINUS) {
+    fun unary(): Pair<Boolean, Expr>  {
+        if (currentToken.symbol == Symbol.PLUS) {
             nextToken()
-            return primary()
+            return Pair(true, unary_plus(primary().second))
+        } else if (currentToken.symbol == Symbol.MINUS) {
+            nextToken()
+            return Pair(true, unary_minus(primary().second))
         }
         return primary()
     }
-    fun primary(): Boolean {
-        if (currentToken.symbol == Symbol.REAL || currentToken.symbol == Symbol.VARIABLE) {
+    fun primary(): Pair<Boolean, Expr>  {
+        if (currentToken.symbol == Symbol.REAL) {
+            val result =  real(currentToken.lexeme.toDouble())
             nextToken()
-            return true
+            return Pair(true, result)
+        } else if (currentToken.symbol == Symbol.VARIABLE) {
+            val result = variable(currentToken.lexeme)
+            nextToken()
+            return Pair(true, result)
         } else if (currentToken.symbol == Symbol.LPAREN) {
             nextToken()
-            if (additive()) {
-                if(currentToken.symbol == Symbol.RPAREN) {
-                    nextToken()
-                    return true
-                }
+            val expr = additive()
+            if(currentToken.symbol == Symbol.RPAREN) {
+                nextToken()
+                return expr
             }
         }
-        return false
+        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 }
 
