@@ -92,161 +92,6 @@ fun calculateArea(coordinates: MutableList<Pair<Double, Double>>): Double {
     return area
 }
 
-fun calculatePath(plot: PlotExpr?, work: WorkExpr?) {
-    if (plot == null || work == null) {
-        println("Plot or work is null")
-        return
-    }
-    work.path = generateBoustrophedonPath(plot.coordinates, work.implementWidth / 5000.0).toMutableList()
-    // = plot.coordinates
-    println("Calculated path: ${work.path}")
-}
-
-fun calculateEfficency(plot: PlotExpr?, work: WorkExpr?) {
-    if (plot == null || work == null || work.timestamps.isEmpty()) {
-        println("Plot, work or timestamps are null/empty")
-        return
-    }
-
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
-    val times = work.timestamps.map { dateFormat.parse(it) }
-    val totalTime = times.zipWithNext { a, b -> (b.time - a.time) / 1000.0 }.sum()
-    val averageWorkTime = totalTime / work.timestamps.size
-
-    calculatePath(plot, work)
-    val pathTime = work.path.size / work.maxSpeed
-    val efficiency = pathTime / averageWorkTime
-
-    work.efficiency = efficiency
-
-    println("Average work time: $averageWorkTime seconds")
-    println("Path time: $pathTime seconds")
-    println("Efficiency: $efficiency")
-}
-
-fun calculateAverageSpeed(work: WorkExpr?) {
-    if (work == null || work.timestamps.isEmpty()) {
-        println("Work or timestamps are null/empty")
-        return
-    }
-
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
-    val times = work.timestamps.map { dateFormat.parse(it) }
-    val totalTime = times.zipWithNext { a, b -> (b.time - a.time) / 1000.0 }.sum()
-    val totalDistance = work.path.zipWithNext { a, b -> distance(a, b) }.sum()
-    val averageSpeed = totalDistance / totalTime
-
-    work.averageSpeed = averageSpeed
-    //println("Average speed: $averageSpeed meters/second")
-}
-
-fun calculateAreaCovered(work: WorkExpr?) {
-    if (work == null || work.path.size < 3) {
-        println("Work or path is null/too short")
-        return
-    }
-
-    work.areaCovered = calculatePolygonArea(work.path)
-    //println("Area covered: $areaCovered square meters")
-}
-
-fun distance(p1: Pair<Double, Double>, p2: Pair<Double, Double>): Double {
-    val (x1, y1) = p1
-    val (x2, y2) = p2
-    return Math.sqrt(Math.pow(x2 - x1, 2.0) + Math.pow(y2 - y1, 2.0))
-}
-
-fun calculatePolygonArea(coordinates: MutableList<Pair<Double, Double>>): Double {
-    var area = 0.0
-    val n = coordinates.size
-    for (i in 0 until n - 1) {
-        val (x1, y1) = coordinates[i]
-        val (x2, y2) = coordinates[i + 1]
-        area += x1 * y2 - x2 * y1
-    }
-    val (xLast, yLast) = coordinates[n - 1]
-    val (xFirst, yFirst) = coordinates[0]
-    area += xLast * yFirst - xFirst * yLast
-    return abs(area) / 2.0
-}
-fun convertToGeoJSONString(env: Map<String, Any>): String {
-    val features = mutableListOf<String>()
-    val plots = env["plots"] as Map<String, PlotExpr>
-    val works = env["works"] as Map<String, WorkExpr>
-    for ((_, plot) in plots) {
-        val coordinates = plot.coordinates.joinToString(", ") { "[${it.first}, ${it.second}]" }
-        val polygon = """
-            {
-                "type": "Feature",
-                "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [
-                        [$coordinates]
-                    ]
-                },
-                "properties": {
-                    "name": ${plot.name},
-                    "type": "${plot.type.name.toLowerCase()}"
-                     ${if(plot.area != null)
-            ",\"efficiency\": ${plot.area}"
-        else
-            ""
-        }
-                }
-            }
-        """.trimIndent()
-        features.add(polygon)
-    }
-    for ((_, work) in works) {
-        val coordinates = work.path.joinToString(", ") { "[${it.first}, ${it.second}]" }
-        val lineString = """
-            {
-                "type": "Feature",
-                "geometry": {
-                    "type": "LineString",
-                    "coordinates": [
-                        $coordinates
-                    ]
-                },
-                "properties": {
-                    "action": ${work.action},
-                    "max-speed": ${work.maxSpeed},
-                    "implement-width": ${work.implementWidth},
-                    "plot": "${work.plot}"
-                    ${if(work.areaCovered != null)
-                        ",\"areaCovered\": ${work.areaCovered}"
-                    else
-                        ""
-                    }
-                    ${if(work.averageSpeed != null)
-            ",\"averageSpeed\": ${work.averageSpeed}"
-        else
-            ""
-        }
-        ${if(work.efficiency != null)
-            ",\"efficiency\": ${work.efficiency}"
-        else
-            ""
-        }
-                }
-            }
-        """.trimIndent()
-        features.add(lineString)
-    }
-    val geoJson = """
-        {
-            "type": "FeatureCollection",
-            "features": [
-                ${features.joinToString(",\n")}
-            ]
-        }
-    """.trimIndent()
-
-    return geoJson
-}
-
-
-
 
 
 
@@ -266,12 +111,15 @@ fun isPointInPolygon(point: Pair<Double, Double>, polygon: List<Pair<Double, Dou
     return result
 }
 
-fun isWorkInPlot(work: WorkExpr, plot: PlotExpr): Boolean {
+fun isWorkInPlot(work: Work, plot: Plot): Boolean {
     if (work.plot == plot.name)
         return true
 
-    for (point in work.path) {
-        if(isPointInPolygon(point, plot.coordinates)) {
+    if (work.path == null)
+        return false
+
+    for (point in work.path!!) {
+        if(isPointInPolygon(Pair(point.first, point.second), plot.coordinates)) {
             println("WORK IS IN PLOT POLYGON")
             return true
         }

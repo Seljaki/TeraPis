@@ -1,12 +1,135 @@
 package si.seljaki
 
+import java.time.LocalDateTime
 import kotlin.math.pow
+
+
+class CalculatePathFunction(val workName: String, val plotName: String): Statement {
+    override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
+        val plot = plots[plotName]
+        val work = works[workName]
+        if(work == null || plot == null)
+            return
+
+        // TODO
+    }
+}
+
+class CalculateAreaFunction(val plotName: String): Statement {
+    override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
+        val plot = plots[plotName] ?: return
+
+        // TODO
+    }
+}
+
+class CalculateAreaCoveredFunction(val workName: String): Statement {
+    override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
+        val work = works[workName] ?: return
+
+        // TODO
+    }
+}
+
+class CalculateAverageSpeedFunction(val workName: String): Statement {
+    override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
+        val work = works[workName] ?: return
+
+        // TODO
+    }
+}
+
+class CalculateEfficiencyFunction(val workName: String, val plotName: String): Statement {
+    override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
+        val plot = plots[plotName]
+        val work = works[workName]
+        if(work == null || plot == null)
+            return
+
+        // TODO
+    }
+}
+
+class IfContainsExpr(val workName: String, val plotName: String, val statements: List<Statement>): Statement {
+    override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
+        val plot = plots[plotName]
+        val work = works[workName]
+        if(work == null || plot == null)
+            return
+
+        if (isWorkInPlot(work, plot)) {
+            for (st in statements) {
+                st.eval(plots, works, variables)
+            }
+        }
+    }
+}
+
+class IfPlotIsValidExpr(val plotName: String, val statements: List<Statement>): Statement {
+    override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
+        val plot = plots[plotName] ?: return
+        // TODO
+        /*if () {
+            for (st in statements) {
+                st.eval(plots, works, variables)
+            }
+        }*/
+    }
+}
+
+class CoordinatesExpr(val points: MutableList<Pair<Expr, Expr>>) {
+    fun eval(variables: MutableMap<String, Double>): MutableList<Pair<Double, Double>> {
+        val coordinates: MutableList<Pair<Double, Double>> = mutableListOf()
+
+        for (point in points) {
+            coordinates.add(Pair(point.first.eval(variables), point.second.eval(variables)))
+        }
+
+        return coordinates
+    }
+}
 
 class PlotDefinitionExpr(val plot: Plot): Statement {
     override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
-        plots[plot.name] = plot
+        if(plot.coordinatesExpr != null) {
+            plot.coordinates = plot.coordinatesExpr!!.eval(variables)
+            plots[plot.name] = plot
+        }
     }
 }
+
+class PathExpr(val points: MutableList<Triple<Expr, Expr, LocalDateTime>>) {
+    fun eval(variables: MutableMap<String, Double>): MutableList<Triple<Double, Double, LocalDateTime>> {
+        val coordinates: MutableList<Triple<Double, Double, LocalDateTime>> = mutableListOf()
+
+        for (point in points) {
+            coordinates.add(Triple(point.first.eval(variables), point.second.eval(variables), point.third))
+        }
+
+        return coordinates
+    }
+}
+
+class WorkDefinitionExpr (
+    var name: String,
+    var pathExpr: PathExpr? = null,
+    var action: String ?= null,
+    var maxSpeed: Expr ?= null,
+    var implementWidth: Expr ?= null,
+    var plot: String? = null,
+): Statement {
+    override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
+        works[name] = Work(
+            name,
+            pathExpr?.eval(variables),
+            action,
+            maxSpeed?.eval(variables),
+            implementWidth?.eval(variables),
+            plot
+        )
+    }
+}
+
 class Assignment(val variableName: String, val expr: Expr): Statement {
     override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
         variables[variableName] = expr.eval(variables)
@@ -65,6 +188,11 @@ class variable(val value: String): Expr {
 class real(val value: Double): Expr {
     override fun eval(variables: MutableMap<String, Double>): Double {
         return value
+    }
+}
+
+class EmptyStatement(): Statement {
+    override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
     }
 }
 

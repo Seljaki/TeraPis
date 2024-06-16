@@ -1,5 +1,7 @@
 package si.seljaki
 
+import java.time.LocalDateTime
+
 interface Expr {
     fun eval(variables: MutableMap<String, Double>): Double
 }
@@ -15,14 +17,14 @@ enum class PlotType{
 data class Plot (
     var name: String,
     var coordinates: MutableList<Pair<Double, Double>> = mutableListOf(),
-    var type: PlotType ?= null,
+    var coordinatesExpr: CoordinatesExpr? = null,
+    var type: PlotType = PlotType.UNDEFINED,
     var area: Double? = null,
 )
 
 data class Work (
     var name: String,
-    var path: MutableList<Pair<Double, Double>> ?= null,
-    var timestamps: MutableList<String> ?= null,
+    var path: MutableList<Triple<Double, Double, LocalDateTime>> ?= null,
     var action: String ?= null,
     var maxSpeed: Double ?= null,
     var implementWidth: Double ?= null,

@@ -9,7 +9,7 @@ fun main(args: Array<String>) {
     var result = false
     val file = File(args[0])
     try {
-        result = SemanticAnalyzer(Scanner(Lexicon, file.inputStream())).parse(args[1])
+        //result = SemanticAnalyzer(Scanner(Lexicon, file.inputStream())).parse(args[1])
         println("No error")
         println(result)
     } catch (e: Exception) {
