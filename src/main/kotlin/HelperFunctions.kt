@@ -1,69 +1,18 @@
 package si.seljaki
 
-import java.text.SimpleDateFormat
-import kotlin.math.abs
+import org.locationtech.jts.geom.*
+import org.locationtech.jts.operation.valid.IsSimpleOp
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.DurationUnit
 
 
-
-fun isValidCoordinates(coordinates: MutableList<Pair<Double, Double>>): Boolean {
-    // Preveri, če ima seznam vsaj tri točke
-    if (coordinates.size < 4) { // Za veljaven poligon potrebujemo vsaj tri točke in začetno enako končni točki
-        return false
-    }
-
-    // Preveri, če je prva točka enaka zadnji točki (zapiranje poti)
-    if (coordinates.first() != coordinates.last()) {
-        return false
-    }
-
-    // Preverjanje, če točke tvorijo veljaven poligon brez presečišč
-    // Za to potrebujemo preveriti vsako stranico s preostalimi
-    for (i in 0 until coordinates.size - 1) {
-        for (j in i + 2 until coordinates.size - 1) {
-            if (i == 0 && j == coordinates.size - 2) continue // preskoči povezovanje prve in zadnje točke
-            if (linesIntersect(coordinates[i], coordinates[i + 1], coordinates[j], coordinates[j + 1])) {
-                return false
-            }
-        }
-    }
-
-    return true
-}
-fun linesIntersect(p1: Pair<Double, Double>, q1: Pair<Double, Double>,
-                   p2: Pair<Double, Double>, q2: Pair<Double, Double>): Boolean {
-
-    // Izračunaj orientacijo
-    fun orientation(p: Pair<Double, Double>, q: Pair<Double, Double>, r: Pair<Double, Double>): Int {
-        val value = (q.second - p.second) * (r.first - q.first) - (q.first - p.first) * (r.second - q.second)
-        return when {
-            value == 0.0 -> 0  // kolinearni
-            value > 0 -> 1     // orijentacija v smeri urinega kazalca
-            else -> 2          // orijentacija v nasprotni smeri urinega kazalca
-        }
-    }
-
-    // Preveri, če se točke nahajajo na segmentu
-    fun onSegment(p: Pair<Double, Double>, q: Pair<Double, Double>, r: Pair<Double, Double>): Boolean {
-        return q.first <= maxOf(p.first, r.first) && q.first >= minOf(p.first, r.first) &&
-                q.second <= maxOf(p.second, r.second) && q.second >= minOf(p.second, r.second)
-    }
-
-    val o1 = orientation(p1, q1, p2)
-    val o2 = orientation(p1, q1, q2)
-    val o3 = orientation(p2, q2, p1)
-    val o4 = orientation(p2, q2, q1)
-
-    if (o1 != o2 && o3 != o4) {
-        return true
-    }
-
-    if (o1 == 0 && onSegment(p1, p2, q1)) return true
-    if (o2 == 0 && onSegment(p1, q2, q1)) return true
-    if (o3 == 0 && onSegment(p2, p1, q2)) return true
-    if (o4 == 0 && onSegment(p2, q1, q2)) return true
-
-    return false
-}
 fun calculateArea(coordinates: MutableList<Pair<Double, Double>>): Double {
     // Preveri, če ima seznam vsaj tri točke (poligon mora imeti vsaj tri točke)
     if (coordinates.size < 3) {
@@ -154,4 +103,139 @@ fun generateBoustrophedonPath(coordinates: List<Pair<Double, Double>>, width: Do
     }
 
     return path
+}
+
+fun hasIntersectingEdges(coordinates: List<Pair<Double, Double>>): Boolean {
+    if (coordinates.size < 4 || coordinates.first() != coordinates.last()) {
+        // A polygon must have at least 4 points, and the first and last point must be the same
+        throw IllegalArgumentException("Invalid polygon: must have at least 4 points and be closed.")
+    }
+
+    val geometryFactory = GeometryFactory()
+    val jtsCoordinates = coordinates.map { Coordinate(it.first, it.second) }.toTypedArray()
+
+    val linearRing: LinearRing = geometryFactory.createLinearRing(jtsCoordinates)
+    val polygon: Polygon = geometryFactory.createPolygon(linearRing)
+
+    // Check if the polygon is simple (has no self-intersections)
+    val isSimple = IsSimpleOp(polygon).isSimple
+
+    // If the polygon is not simple, it means there are intersecting edges
+    return !isSimple
+}
+
+
+
+fun calculateAverageSpeed(path: List<Triple<Double, Double, LocalDateTime>>): Double {
+    if (path.size < 2) {
+        throw IllegalArgumentException("Path must contain at least two points")
+    }
+
+    val totalDistance = path.zipWithNext { (lat1, lon1, time1), (lat2, lon2, time2) ->
+        // Haversine formula to calculate distance between two points in meters
+        val deltaLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        val radiusEarth = 6371e3  // Earth radius in meters (customize if needed)
+        radiusEarth * c
+    }.sum()
+
+    val totalTime = path.last().third.minusNanos(path.first().third.nano.toLong()).nano / (1000 * 60 * 60) // Convert to hours
+
+    if (totalTime <= 0.0) {
+        return 0.0 // Avoid division by zero
+    }
+
+    return totalDistance / totalTime
+}
+
+
+fun createTractorPath(polygon: List<Pair<Double, Double>>, implementWidth: Double, maxSpeed: Double): List<Triple<Double, Double, LocalDateTime>> {
+    // Check for valid input
+    if (polygon.size < 3) {
+        throw IllegalArgumentException("Polygon must have at least 3 points")
+    }
+
+    val offsetPolygon = createOffsetPolygon(polygon, implementWidth / 2.0)
+
+    // Generate timestamps based on desired speed and path length
+    val pathLength = calculatePathLength(offsetPolygon)
+    val timestamps = generateTimestamps(pathLength, maxSpeed)
+
+    // Combine offset polygon coordinates with timestamps
+    val path = mutableListOf<Triple<Double, Double, LocalDateTime>>()
+    for (i in offsetPolygon.indices) {
+        val point = offsetPolygon[i]
+        val timestamp = timestamps[i % timestamps.size] // Wrap around for cyclic path
+        path.add(Triple(point.first, point.second, timestamp))
+    }
+    return path
+}
+
+// Function to create a buffer polygon with specified offset distance
+private fun createOffsetPolygon(polygon: List<Pair<Double, Double>>, offset: Double): List<Pair<Double, Double>> {
+    // Implement an offset algorithm here (e.g., using libraries like JTS)
+    // This example assumes a simple inward buffer by shifting each point slightly inwards
+    // Replace with a proper offset implementation
+    return polygon.map { point ->
+        val (lat, lon) = point
+        val newLat = lat - offset * Math.sin(Math.toRadians(lat))
+        val newLon = lon + offset * Math.cos(Math.toRadians(lat))
+        Pair(newLat, newLon)
+    }
+}
+
+// Function to calculate the total path length of the polygon
+private fun calculatePathLength(polygon: List<Pair<Double, Double>>): Double {
+    val distances = polygon.zipWithNext { (lat1, lon1), (lat2, lon2) ->
+        val deltaLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        val radiusEarth = 6371e3  // Earth radius in meters (customize if needed)
+        radiusEarth * c
+    }
+    return distances.sum()
+}
+
+// Function to generate timestamps based on path length and speed
+private fun generateTimestamps(pathLength: Double, speed: Double): List<LocalDateTime> {
+    if (speed <= 0.0) {
+        throw IllegalArgumentException("Speed cannot be zero or negative")
+    }
+    val travelTime = pathLength / speed
+
+    val startTime = LocalDateTime.now()
+    val timestamps = mutableListOf(startTime)
+    var currentTime = startTime
+    while (currentTime.plusNanos((travelTime * 1000 * 60 * 60).nanoseconds.toLong(DurationUnit.NANOSECONDS)) < LocalDateTime.now()) {
+        currentTime = currentTime.plusNanos((travelTime * 1000 * 60 * 60).nanoseconds.toLong(DurationUnit.NANOSECONDS))
+        timestamps.add(currentTime)
+    }
+    return timestamps
+}
+
+fun calculateCoveredArea(path: List<Triple<Double, Double, LocalDateTime>>, implementWidth: Double): Double {
+    if (path.size < 3) {
+        throw IllegalArgumentException("Path must have at least 3 points")
+    }
+
+    val offsetPolygon = path.map { it.first to it.second }.toSet() // Extract coordinates as a Set
+
+    val shoelaceFormula = offsetPolygon.zipWithNext { p1, p2 ->
+        p1.first * p2.second - p2.first * p1.second
+    }.sum()
+
+    val area = Math.abs(shoelaceFormula / 2.0)
+
+    return area * implementWidth
+}
+
+fun getDifferenceInSeconds(dateTime1: LocalDateTime, dateTime2: LocalDateTime): Long {
+    return ChronoUnit.MILLIS.between(dateTime1, dateTime2)
 }

@@ -592,14 +592,38 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
 
 fun main() {
     var result = false
-    val file = File("syntax_analyzer_tests/good/04.txt")
+    val file = File("semantika_tests/good/02.txt")
+
     try {
-        val ast =  SyntaxAnalyzer(Scanner(Lexicon, file.inputStream())).parse()
+        val ast = SyntaxAnalyzer(Scanner(Lexicon, file.inputStream())).parse()
         result = ast.first
         println("No error")
+
+        if(!result)
+            return
+        val variables: MutableMap<String, Double> = mutableMapOf()
+        val plots: MutableMap<String, Plot> = mutableMapOf()
+        val works: MutableMap<String, Work> = mutableMapOf()
+
+        for (statement in ast.second) {
+            statement.eval(plots, works, variables)
+        }
+
+        println("*** PLOTS ***")
+        for (plot in plots) {
+            println(plot)
+        }
+
+        println("*** WORK ***")
+        for (work in works) {
+            println(work)
+        }
+
+        println(convertPlotsAndWorkToGeoJson(plots.values.toList(), works.values.toList()))
     } catch (e: Exception) {
         println("Error")
         println(e)
     }
+
     println("Is correct: $result")
 }

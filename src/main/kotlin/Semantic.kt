@@ -8,10 +8,10 @@ class CalculatePathFunction(val workName: String, val plotName: String): Stateme
     override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
         val plot = plots[plotName]
         val work = works[workName]
-        if(work == null || plot == null)
+        if(work == null || plot == null || work.implementWidth == null || work.maxSpeed == null)
             return
 
-        // TODO
+        work.path = createTractorPath(plot.coordinates, work.implementWidth!!, work.maxSpeed!!).toMutableList()
     }
 }
 
@@ -19,23 +19,27 @@ class CalculateAreaFunction(val plotName: String): Statement {
     override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
         val plot = plots[plotName] ?: return
 
-        // TODO
+        plot.area = calculateArea(plot.coordinates)
     }
 }
 
 class CalculateAreaCoveredFunction(val workName: String): Statement {
     override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
         val work = works[workName] ?: return
+        if(work.path == null || work.implementWidth == null)
+            return
 
-        // TODO
+        work.areaCovered = calculateCoveredArea(work.path!!, work.implementWidth!!)
     }
 }
 
 class CalculateAverageSpeedFunction(val workName: String): Statement {
     override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
         val work = works[workName] ?: return
+        if (work.path == null)
+            return
 
-        // TODO
+        work.averageSpeed = calculateAverageSpeed(work.path!!)
     }
 }
 
@@ -43,10 +47,14 @@ class CalculateEfficiencyFunction(val workName: String, val plotName: String): S
     override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
         val plot = plots[plotName]
         val work = works[workName]
-        if(work == null || plot == null)
+        if(work == null || plot == null || work.path == null)
             return
 
-        // TODO
+        val bestPath = createTractorPath(plot.coordinates, work.implementWidth!!, work.maxSpeed!!)
+        val originalTime = getDifferenceInSeconds(work.path!![0].third, work.path!!.last().third)
+        val newTime = getDifferenceInSeconds(bestPath[0].third, bestPath.last().third)
+
+        work.efficiency = (newTime / originalTime).toDouble() * 100.0
     }
 }
 
@@ -68,12 +76,12 @@ class IfContainsExpr(val workName: String, val plotName: String, val statements:
 class IfPlotIsValidExpr(val plotName: String, val statements: List<Statement>): Statement {
     override fun eval(plots: MutableMap<String, Plot>, works: MutableMap<String, Work>, variables: MutableMap<String, Double>) {
         val plot = plots[plotName] ?: return
-        // TODO
-        /*if () {
+        if (!hasIntersectingEdges(plot.coordinates)) {
+            println("PLOT IS VALID!!!")
             for (st in statements) {
                 st.eval(plots, works, variables)
             }
-        }*/
+        }
     }
 }
 

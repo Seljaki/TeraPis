@@ -1,8 +1,8 @@
-var_test = 3 - 8
+var_test = 16.0511
 
 plot "Plot 2" {
 coordinates: [
-Point(16.0511,46.4113),
+Point(var_test,46.4113),
 Point(16.0513,46.4113),
 Point(16.0517,46.4114),
 Point(16.0523,46.4113),
@@ -43,7 +43,3 @@ if plot "Plot 2" is valid {
 CalculateArea("Plot 2")
 CalculatePath("Plot 2", "mowing")
 }
-
-
-
-CalculateAverageSpeed("mowing")
