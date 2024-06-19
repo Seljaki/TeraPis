@@ -1,0 +1,120 @@
+var_test = 16.0511
+
+plot "Plot 2" {
+    coordinates: [
+        Point(var_test,46.4113),
+        Point(16.0513,46.4113),
+        Point(16.0517,46.4114),
+        Point(16.0523,46.4113),
+        Point(16.0524,46.4114),
+        Point(16.0527,46.4115),
+        Point(16.0529,46.4115),
+        Point(16.0531,46.4115),
+        Point(16.0536,46.4115),
+        Point(16.0538,46.4115),
+        Point(16.0543,46.4117),
+        Point(16.0543,46.4121),
+        Point(16.0543,46.4122),
+        Point(16.0543,46.4122),
+        Point(16.0543,46.4123),
+        Point(16.0543,46.4123),
+        Point(16.0544,46.4123),
+        Point(16.0544,46.4127),
+        Point(16.0502,46.4128),
+        Point(16.0503,46.4124),
+        Point(16.0504,46.4121),
+        Point(16.0505,46.4118),
+        Point(16.0507,46.4114),
+        Point(16.0508,46.4114),
+        Point(16.0509,46.4113),
+        Point(16.0511,46.4113)
+    ],
+    type: field
+}
+
+plot "Invalid" {
+    coordinates: [
+        Point(var_test,46.4113),
+        Point(1,0),
+        Point(16.0523,46.4113),
+        Point(0,1),
+        Point(16.0527,46.4115),
+        Point(16.0523,46.4113),
+        Point(1,1),
+        Point(1,11)
+    ],
+    type: field
+}
+
+work "mowing" {
+    action: "mowing",
+    max-speed: var_test - 1,
+    implement-width: var_test
+}
+
+work "Baling" {
+    path: [
+        PointT(16.050392730020548, 46.41257447061665, 20240425T071759Z),
+        PointT(16.054102984047773, 46.4124951504366, 20240425T071859Z),
+        PointT(16.054095793633252, 46.412113420455114, 20240425T071959Z),
+        PointT(16.050637204123348, 46.412217528896974, 20240425T072059Z),
+        PointT(16.050745060345008, 46.41183579697284, 20240425T072159Z),
+        PointT(16.053908842849268, 46.41180605151561, 20240425T072259Z),
+        PointT(16.053750653723313, 46.411558172076866, 20240425T072359Z),
+        PointT(16.050953582373893, 46.41149372323832, 20240425T072459Z)
+    ],
+    action: "Baling"
+}
+
+
+if plot "Plot 2" is valid {
+    CalculateArea("Plot 2")
+    CalculatePath("Plot 2", "mowing")
+
+    plot "Plot 3" {
+        coordinates: [
+            Point(var_test,46.4113),
+            Point(16.0513,46.4113),
+            Point(16.0517,46.4114),
+            Point(16.0523,46.4113),
+            Point(16.0524,46.4114),
+            Point(16.0527,46.4115),
+            Point(16.0529,46.4115),
+            Point(16.0531,46.4115),
+            Point(16.0536,46.4115),
+            Point(16.0538,46.4115),
+            Point(16.0543,46.4117),
+            Point(16.0543,46.4121),
+            Point(16.0543,46.4122),
+            Point(16.0543,46.4122)
+        ],
+        type: field
+    }
+}
+
+if plot "Invalid" is valid {
+    plot "Plot 4" {
+        coordinates: [
+            Point(var_test,46.4113),
+            Point(16.0513,46.4113),
+            Point(16.0517,46.4114),
+            Point(16.0523,46.4113),
+            Point(16.0524,46.4114),
+            Point(16.0527,46.4115),
+            Point(16.0529,46.4115),
+            Point(16.0531,46.4115),
+            Point(16.0536,46.4115),
+            Point(16.0538,46.4115),
+            Point(16.0543,46.4117),
+            Point(16.0543,46.4121),
+            Point(16.0543,46.4122),
+            Point(16.0543,46.4122)
+        ],
+        type: field
+    }
+}
+
+
+CalculateAverageSpeed("mowing")
+CalculateAreaCovered("mowing")
+CalculateAverageSpeed("Baling")

@@ -1,9 +1,8 @@
 package si.seljaki
 
-import java.awt.Desktop.Action
-import java.beans.Expression
 import java.io.File
-import kotlin.math.exp
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 class SyntaxAnalyzer(private val scanner: Scanner) {
     private var currentToken: Token = scanner.getToken()
@@ -14,60 +13,58 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         return currentToken
     }
 
-    fun parse(): Boolean {
+    fun parse(): Pair<Boolean, List<Statement>> {
         return Statements()
     }
 
-    fun Statements(): Boolean {
-        if (Statement()) {
-            if (Statements()) {
-                return true
-            }
-            return true
+    fun Statements(): Pair<Boolean, List<Statement>> {
+        val statements: MutableList<Statement> = mutableListOf()
+
+        while (currentToken.symbol != Symbol.EOF) {
+            val result = Statement()
+            statements.add(result.second)
+            if (!result.first)
+                return Pair(true, statements)
         }
-        return false
+
+        return Pair(true, statements)
     }
 
-    fun Statement(): Boolean {
+    fun Statement(): Pair<Boolean, Statement> {
         if (currentToken.symbol == Symbol.PLOT) {
             nextToken()
-            if(PlotDefinition()) {
-                return true
-            }
+            return PlotDefinition()
         }
         if (currentToken.symbol == Symbol.WORK) {
             nextToken()
-            if(WorkDefinition()) {
-                return true
-            }
+            return WorkDefinition()
         }
         if (currentToken.symbol == Symbol.IF) {
             nextToken()
-            if(If()) {
-                return true
-            }
+            return If()
         }
         if (currentToken.symbol == Symbol.VARIABLE) {
+            val name = currentToken.lexeme;
             nextToken()
-            if(VariableAssigment()) {
-                return true
-            }
+            return VariableAssigment(name)
         }
-        if (Function()) {
-            return true
+        val functionResult = Function()
+        if (functionResult.first) {
+            return functionResult
         }
-        return false
+        return Pair(false, EmptyStatement())
     }
 
-    fun PlotDefinition(): Boolean {
+    fun PlotDefinition(): Pair<Boolean, PlotDefinitionExpr> {
         if (currentToken.symbol == Symbol.NAME) {
+            val plot = Plot(currentToken.lexeme)
             nextToken()
             if (currentToken.symbol == Symbol.LCURLY) {
                 nextToken()
-                if(PlotBody()) {
+                if(PlotBody(plot)) {
                     if (currentToken.symbol == Symbol.RCURLY) {
                         nextToken()
-                        return true
+                        return Pair(true, PlotDefinitionExpr(plot))
                     }
                 }
             }
@@ -75,42 +72,45 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun PlotBody(): Boolean {
-        if (PlotBody2()) {
+    fun PlotBody(plot: Plot): Boolean {
+        if (PlotBody2(plot)) {
             if (currentToken.symbol == Symbol.COMMA) {
                 nextToken()
-                return PlotBody()
+                return PlotBody(plot)
             }
             return true
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun PlotBody2(): Boolean {
+    fun PlotBody2(plot: Plot): Boolean {
         if (currentToken.symbol == Symbol.COORDINATES) {
             nextToken()
-            if (Coordinates()) {
+            val result = Coordinates()
+            if (result.first) {
+                plot.coordinatesExpr = result.second
                 return true
             }
         }
         if (currentToken.symbol == Symbol.TYPE) {
             nextToken()
-            if(PlotType()) {
+            if(PlotType(plot)) {
                 return true
             }
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Coordinates(): Boolean {
+    fun Coordinates(): Pair<Boolean, CoordinatesExpr> {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
             if(currentToken.symbol == Symbol.LSQUARE) {
                 nextToken()
-                if(Points()) {
+                val points: MutableList<Pair<Expr, Expr>> = mutableListOf()
+                if(Points(points)) {
                     if(currentToken.symbol == Symbol.RSQUARE) {
                         nextToken()
-                        return true
+                        return Pair(true, CoordinatesExpr(points))
                     }
                 }
             }
@@ -118,29 +118,33 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Points(): Boolean {
-        if (Point()) {
+    fun Points(points: MutableList<Pair<Expr, Expr>>): Boolean {
+        val result = Point()
+        if (result.first) {
+            points.add(result.second)
             if (currentToken.symbol == Symbol.COMMA) {
                 nextToken()
-                return Points()
+                return Points(points)
             }
             return true
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Point(): Boolean {
+    fun Point(): Pair<Boolean, Pair<Expr, Expr>> {
         if (currentToken.symbol == Symbol.POINT) {
             nextToken()
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
-                if (expr()) {
+                val expr1 = expr()
+                if (expr1.first) {
                     if (currentToken.symbol == Symbol.COMMA) {
                         nextToken()
-                        if (expr()) {
+                        val expr2 = expr()
+                        if (expr2.first) {
                             if (currentToken.symbol == Symbol.RPAREN) {
                                 nextToken()
-                                return true
+                                return Pair(true, Pair(expr1.second, expr2.second))
                             }
                         }
                     }
@@ -150,30 +154,33 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun PlotType(): Boolean {
+    fun PlotType(plot: Plot): Boolean {
         if(currentToken.symbol == Symbol.COLON) {
             nextToken()
             if(currentToken.symbol == Symbol.FOREST) {
                 nextToken()
+                plot.type = PlotType.FOREST
                 return true
             }
             if(currentToken.symbol == Symbol.FIELD) {
                 nextToken()
+                plot.type = PlotType.FIELD
                 return true
             }
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun WorkDefinition(): Boolean {
+    fun WorkDefinition(): Pair<Boolean, WorkDefinitionExpr> {
         if(currentToken.symbol == Symbol.NAME) {
+            val workDefinitionExpr = WorkDefinitionExpr(currentToken.lexeme)
             nextToken()
             if (currentToken.symbol == Symbol.LCURLY) {
                 nextToken()
-                if(WorkBody()) {
+                if(WorkBody(workDefinitionExpr)) {
                     if (currentToken.symbol == Symbol.RCURLY) {
                         nextToken()
-                        return true
+                        return Pair(true, workDefinitionExpr)
                     }
                 }
             }
@@ -181,60 +188,63 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun WorkBody(): Boolean {
-        if (WorkBody2()) {
+    fun WorkBody(workDefinitionExpr: WorkDefinitionExpr): Boolean {
+        if (WorkBody2(workDefinitionExpr)) {
             if (currentToken.symbol == Symbol.COMMA) {
                 nextToken()
-                return WorkBody()
+                return WorkBody(workDefinitionExpr)
             }
             return true
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun WorkBody2(): Boolean {
+    fun WorkBody2(workDefinitionExpr: WorkDefinitionExpr): Boolean {
         if(currentToken.symbol == Symbol.PATH) {
             nextToken()
-            if (Path()) {
+            val result = Path()
+            if (result.first) {
+                workDefinitionExpr.pathExpr = result.second
                 return true
             }
         }
         if(currentToken.symbol == Symbol.ACTION) {
             nextToken()
-            if (Action()) {
+            if (Action(workDefinitionExpr)) {
                 return true
             }
         }
         if(currentToken.symbol == Symbol.MAX_SPEED) {
             nextToken()
-            if (MaxSpeed()) {
+            if (MaxSpeed(workDefinitionExpr)) {
                 return true
             }
         }
         if(currentToken.symbol == Symbol.IMPLEMENT_WIDTH) {
             nextToken()
-            if (ImplementWidth()) {
+            if (ImplementWidth(workDefinitionExpr)) {
                 return true
             }
         }
         if(currentToken.symbol == Symbol.PLOT) {
             nextToken()
-            if (WorkPlot()) {
+            if (WorkPlot(workDefinitionExpr)) {
                 return true
             }
         }
         return false
     }
 
-    fun Path(): Boolean {
+    fun Path(): Pair<Boolean, PathExpr> {
         if(currentToken.symbol == Symbol.COLON) {
             nextToken()
             if(currentToken.symbol == Symbol.LSQUARE) {
+                val points: MutableList<Triple<Expr, Expr, LocalDateTime>> = mutableListOf()
                 nextToken()
-                if(Pointts()) {
+                if(Pointts(points)) {
                     if(currentToken.symbol == Symbol.RSQUARE) {
                         nextToken()
-                        return true
+                        return Pair(true, PathExpr(points))
                     }
                 }
             }
@@ -242,33 +252,43 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Pointts(): Boolean {
-        if (Pointt()) {
+    fun Pointts(points: MutableList<Triple<Expr, Expr, LocalDateTime>>): Boolean {
+        val result = Pointt()
+        if (result.first) {
+            points.add(result.second)
             if (currentToken.symbol == Symbol.COMMA) {
                 nextToken()
-                return Pointts()
+                return Pointts(points)
             }
             return true
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Pointt(): Boolean {
+    fun Pointt(): Pair<Boolean, Triple<Expr, Expr, LocalDateTime>> {
         if (currentToken.symbol == Symbol.POINTT) {
             nextToken()
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
-                if (expr()) {
+                val expr1 = expr()
+                if (expr1.first) {
                     if (currentToken.symbol == Symbol.COMMA) {
                         nextToken()
-                        if (expr()) {
+                        val expr2 = expr()
+                        if (expr2.first) {
                             if (currentToken.symbol == Symbol.COMMA) {
                                 nextToken()
                                 if(currentToken.symbol == Symbol.TIMESTAMP) {
+                                    val customFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmssX")
+                                    val time = LocalDateTime.parse(currentToken.lexeme, customFormatter)
                                     nextToken()
                                     if (currentToken.symbol == Symbol.RPAREN) {
                                         nextToken()
-                                        return true
+                                        return Pair(true, Triple(
+                                            expr1.second,
+                                            expr2.second,
+                                            time
+                                        ))
                                     }
                                 }
                             }
@@ -280,10 +300,11 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Action(): Boolean {
+    fun Action(workDefinitionExpr: WorkDefinitionExpr): Boolean {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
             if(currentToken.symbol == Symbol.NAME) {
+                workDefinitionExpr.action = currentToken.lexeme
                 nextToken()
                 return true
             }
@@ -291,30 +312,35 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun MaxSpeed(): Boolean {
+    fun MaxSpeed(workDefinitionExpr: WorkDefinitionExpr): Boolean {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
-            if(expr()) {
+            val result = expr()
+            if(result.first) {
+                workDefinitionExpr.maxSpeed = result.second
                 return true
             }
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun ImplementWidth(): Boolean {
+    fun ImplementWidth(workDefinitionExpr: WorkDefinitionExpr): Boolean {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
-            if(expr()) {
+            val result = expr()
+            if(result.first) {
+                workDefinitionExpr.implementWidth = result.second
                 return true
             }
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun WorkPlot(): Boolean {
+    fun WorkPlot(workDefinitionExpr: WorkDefinitionExpr): Boolean {
         if (currentToken.symbol == Symbol.COLON) {
             nextToken()
             if(currentToken.symbol == Symbol.NAME) {
+                workDefinitionExpr.plot = currentToken.lexeme
                 nextToken()
                 return true
             }
@@ -322,42 +348,40 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun If(): Boolean {
+    fun If(): Pair<Boolean, Statement> {
         if (currentToken.symbol == Symbol.PLOT) {
             nextToken()
             if (currentToken.symbol == Symbol.NAME) {
+                val name = currentToken.lexeme
                 nextToken()
-                return If2()
+                return If2(name)
             }
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun If2(): Boolean {
+    fun If2(plotName: String): Pair<Boolean, Statement> {
         if (currentToken.symbol == Symbol.IS) {
             nextToken()
-            if(IfIsValid()) {
-                return true
-            }
+            return IfIsValid(plotName)
         }
         if (currentToken.symbol == Symbol.CONTAINS) {
             nextToken()
-            if (IfContains()) {
-                return true
-            }
+            return IfContains(plotName)
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun IfIsValid(): Boolean {
+    fun IfIsValid(plotName: String): Pair<Boolean, IfPlotIsValidExpr> {
         if (currentToken.symbol == Symbol.VALID) {
             nextToken()
             if(currentToken.symbol == Symbol.LCURLY) {
                 nextToken()
-                if (Statements()) {
+                val result = Statements()
+                if (result.first) {
                     if(currentToken.symbol == Symbol.RCURLY) {
                         nextToken()
-                        return true
+                        return Pair(true, IfPlotIsValidExpr(plotName, result.second))
                     }
                 }
             }
@@ -365,15 +389,17 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun IfContains(): Boolean {
+    fun IfContains(plotName: String): Pair<Boolean, IfContainsExpr> {
         if (currentToken.symbol == Symbol.NAME) {
+            val workName = currentToken.lexeme
             nextToken()
             if(currentToken.symbol == Symbol.LCURLY) {
                 nextToken()
-                if (Statements()) {
+                val result = Statements()
+                if (result.first) {
                     if(currentToken.symbol == Symbol.RCURLY) {
                         nextToken()
-                        return true
+                        return Pair(true, IfContainsExpr(plotName, workName, result.second))
                     }
                 }
             }
@@ -381,20 +407,22 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun Function(): Boolean {
+    fun Function(): Pair<Boolean, Statement> {
         if (currentToken.symbol == Symbol.CALCULATE_PATH) {
             nextToken()
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
                 if (currentToken.symbol == Symbol.NAME) {
+                    val plotName = currentToken.lexeme
                     nextToken()
                     if (currentToken.symbol == Symbol.COMMA) {
                         nextToken()
                         if (currentToken.symbol == Symbol.NAME) {
+                            val workName = currentToken.lexeme
                             nextToken()
                             if (currentToken.symbol == Symbol.RPAREN) {
                                 nextToken()
-                                return true
+                                return Pair(true, CalculatePathFunction(workName, plotName))
                             }
                         }
                     }
@@ -407,10 +435,11 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
                 if (currentToken.symbol == Symbol.NAME) {
+                    val plotName = currentToken.lexeme
                     nextToken()
                     if (currentToken.symbol == Symbol.RPAREN) {
                         nextToken()
-                        return true
+                        return Pair(true, CalculateAreaFunction(plotName))
                     }
                 }
             }
@@ -421,10 +450,11 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
                 if (currentToken.symbol == Symbol.NAME) {
+                    val workName = currentToken.lexeme
                     nextToken()
                     if (currentToken.symbol == Symbol.RPAREN) {
                         nextToken()
-                        return true
+                        return Pair(true, CalculateAreaCoveredFunction(workName))
                     }
                 }
             }
@@ -435,10 +465,11 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
                 if (currentToken.symbol == Symbol.NAME) {
+                    val workName = currentToken.lexeme
                     nextToken()
                     if (currentToken.symbol == Symbol.RPAREN) {
                         nextToken()
-                        return true
+                        return Pair(true, CalculateAverageSpeedFunction(workName))
                     }
                 }
             }
@@ -449,14 +480,16 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
             if (currentToken.symbol == Symbol.LPAREN) {
                 nextToken()
                 if (currentToken.symbol == Symbol.NAME) {
+                    val plotName = currentToken.lexeme
                     nextToken()
                     if (currentToken.symbol == Symbol.COMMA) {
                         nextToken()
                         if (currentToken.symbol == Symbol.NAME) {
+                            val workName = currentToken.lexeme
                             nextToken()
                             if (currentToken.symbol == Symbol.RPAREN) {
                                 nextToken()
-                                return true
+                                return Pair(true, CalculateEfficiencyFunction(workName, plotName))
                             }
                         }
                     }
@@ -464,85 +497,134 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
             }
             throw IllegalStateException("Encountered invalid token: $currentToken")
         }
-        return false
+        return Pair(false, EmptyStatement())
     }
 
-    fun VariableAssigment(): Boolean {
+    fun VariableAssigment(variableName: String): Pair<Boolean, Assignment> {
         if (currentToken.symbol == Symbol.EQUALS) {
             nextToken()
-            if(expr()) {
-                return true
+            val result = expr()
+            if(result.first) {
+                return Pair(true, Assignment(variableName, result.second))
             }
         }
         throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 
-    fun expr(): Boolean {
+    fun expr(): Pair<Boolean, Expr>  {
         return additive()
     }
-    fun additive(): Boolean {
-        return multiplicative() && additive2()
+    fun additive(): Pair<Boolean, Expr>  {
+        val result = multiplicative()
+        return additive2(result.second)
     }
-    fun additive2(): Boolean {
-        if(currentToken.symbol == Symbol.PLUS || currentToken.symbol == Symbol.MINUS) {
+    fun additive2(inVal: Expr): Pair<Boolean, Expr>  {
+        if(currentToken.symbol == Symbol.PLUS) {
             nextToken()
-            return multiplicative() && additive2()
-        }
-        return true
-    }
-    fun multiplicative(): Boolean {
-        return exponential() && multiplicative2()
-    }
-    fun multiplicative2(): Boolean {
-        if(currentToken.symbol == Symbol.MULTIPLY || currentToken.symbol == Symbol.DIVIDE) {
+            val plus = plus(inVal, multiplicative().second)
+            return additive2(plus)
+        } else if(currentToken.symbol == Symbol.MINUS) {
             nextToken()
-            return exponential() && multiplicative2()
+            val minus = minus(inVal, multiplicative().second)
+            return additive2(minus)
         }
-        return true
+        return Pair(true, inVal)
     }
-    fun exponential(): Boolean {
-        return unary() && exponential2()
+    fun multiplicative(): Pair<Boolean, Expr>  {
+        val result = exponential()
+        return multiplicative2(result.second)
     }
-    fun exponential2(): Boolean {
+    fun multiplicative2(inVal: Expr): Pair<Boolean, Expr>  {
+        if(currentToken.symbol == Symbol.MULTIPLY) {
+            nextToken()
+            val result = times(inVal, exponential().second)
+            return multiplicative2(result)
+        } else if( currentToken.symbol == Symbol.DIVIDE) {
+            nextToken()
+            val result = divides(inVal, exponential().second)
+            return multiplicative2(result)
+        }
+
+        return Pair(true, inVal)
+    }
+    fun exponential(): Pair<Boolean, Expr>  {
+        val result = unary()
+        return exponential2(result.second)
+    }
+    fun exponential2(inVal: Expr): Pair<Boolean, Expr>  {
         if (currentToken.symbol == Symbol.POW) {
             nextToken()
-            return unary() && exponential2()
+            val result = exponential2(unary().second)
+            return Pair(result.first, pow(inVal, result.second))
         }
-        return true
+        return Pair(true, inVal)
     }
-    fun unary(): Boolean {
-        if (currentToken.symbol == Symbol.PLUS || currentToken.symbol == Symbol.MINUS) {
+    fun unary(): Pair<Boolean, Expr>  {
+        if (currentToken.symbol == Symbol.PLUS) {
             nextToken()
-            return primary()
+            return Pair(true, unary_plus(primary().second))
+        } else if (currentToken.symbol == Symbol.MINUS) {
+            nextToken()
+            return Pair(true, unary_minus(primary().second))
         }
         return primary()
     }
-    fun primary(): Boolean {
-        if (currentToken.symbol == Symbol.REAL || currentToken.symbol == Symbol.VARIABLE) {
+    fun primary(): Pair<Boolean, Expr>  {
+        if (currentToken.symbol == Symbol.REAL) {
+            val result =  real(currentToken.lexeme.toDouble())
             nextToken()
-            return true
+            return Pair(true, result)
+        } else if (currentToken.symbol == Symbol.VARIABLE) {
+            val result = variable(currentToken.lexeme)
+            nextToken()
+            return Pair(true, result)
         } else if (currentToken.symbol == Symbol.LPAREN) {
             nextToken()
-            if (additive()) {
-                if(currentToken.symbol == Symbol.RPAREN) {
-                    nextToken()
-                    return true
-                }
+            val expr = additive()
+            if(currentToken.symbol == Symbol.RPAREN) {
+                nextToken()
+                return expr
             }
         }
-        return false
+        throw IllegalStateException("Encountered invalid token: $currentToken")
     }
 }
 
 fun main() {
     var result = false
-    val file = File("syntax_analyzer_tests/good/02.txt")
+    val file = File("semantika_tests/good/04.txt")
+
     try {
-        result = SyntaxAnalyzer(Scanner(Lexicon, file.inputStream())).parse()
+        val ast = SyntaxAnalyzer(Scanner(Lexicon, file.inputStream())).parse()
+        result = ast.first
         println("No error")
+
+        if(!result)
+            return
+
+        val variables: MutableMap<String, Double> = mutableMapOf()
+        val plots: MutableMap<String, Plot> = mutableMapOf()
+        val works: MutableMap<String, Work> = mutableMapOf()
+
+        for (statement in ast.second) {
+            statement.eval(plots, works, variables)
+        }
+
+        println("*** PLOTS ***")
+        for (plot in plots) {
+            println(plot)
+        }
+
+        println("*** WORK ***")
+        for (work in works) {
+            println(work)
+        }
+
+        println(convertPlotsAndWorkToGeoJson(plots.values.toList(), works.values.toList()))
     } catch (e: Exception) {
         println("Error")
         println(e)
     }
+
     println("Is correct: $result")
 }
