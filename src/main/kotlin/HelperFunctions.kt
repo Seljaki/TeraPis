@@ -4,10 +4,7 @@ import org.locationtech.jts.geom.*
 import org.locationtech.jts.operation.valid.IsSimpleOp
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
+import kotlin.math.*
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.DurationUnit
@@ -108,7 +105,7 @@ fun generateBoustrophedonPath(coordinates: List<Pair<Double, Double>>, width: Do
 fun hasIntersectingEdges(coordinates: List<Pair<Double, Double>>): Boolean {
     if (coordinates.size < 4 || coordinates.first() != coordinates.last()) {
         // A polygon must have at least 4 points, and the first and last point must be the same
-        throw IllegalArgumentException("Invalid polygon: must have at least 4 points and be closed.")
+        return true
     }
 
     val geometryFactory = GeometryFactory()
@@ -126,30 +123,40 @@ fun hasIntersectingEdges(coordinates: List<Pair<Double, Double>>): Boolean {
 
 
 
-fun calculateAverageSpeed(path: List<Triple<Double, Double, LocalDateTime>>): Double {
-    if (path.size < 2) {
-        throw IllegalArgumentException("Path must contain at least two points")
+fun calculateAverageSpeed(coordinates: List<Triple<Double, Double, LocalDateTime>>): Double {
+    if (coordinates.size < 2) {
+        throw IllegalArgumentException("At least two coordinates are needed to calculate speed")
     }
 
-    val totalDistance = path.zipWithNext { (lat1, lon1, time1), (lat2, lon2, time2) ->
-        // Haversine formula to calculate distance between two points in meters
-        val deltaLat = Math.toRadians(lat2 - lat1)
-        val dLon = Math.toRadians(lon2 - lon1)
-        val a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
-                Math.sin(dLon / 2) * Math.sin(dLon / 2)
-        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-        val radiusEarth = 6371e3  // Earth radius in meters (customize if needed)
-        radiusEarth * c
-    }.sum()
+    var totalDistance = 0.0
+    var totalTime = 0.0
 
-    val totalTime = path.last().third.minusNanos(path.first().third.nano.toLong()).nano / (1000 * 60 * 60) // Convert to hours
+    for (i in 1 until coordinates.size) {
+        val (lat1, lon1, time1) = coordinates[i - 1]
+        val (lat2, lon2, time2) = coordinates[i]
 
-    if (totalTime <= 0.0) {
-        return 0.0 // Avoid division by zero
+        // Convert latitudes and longitudes from degrees to radians
+        val lat1Rad = Math.toRadians(lat1)
+        val lon1Rad = Math.toRadians(lon1)
+        val lat2Rad = Math.toRadians(lat2)
+        val lon2Rad = Math.toRadians(lon2)
+
+        // Haversine formula to calculate the distance between two points on the Earth
+        val dlat = lat2Rad - lat1Rad
+        val dlon = lon2Rad - lon1Rad
+        val a = sin(dlat / 2).pow(2) + cos(lat1Rad) * cos(lat2Rad) * sin(dlon / 2).pow(2)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        val earthRadiusKm = 6371.0
+        val distance = earthRadiusKm * c
+
+        totalDistance += distance
+
+        // Calculate the time difference in hours
+        val duration = ChronoUnit.MINUTES.between(time1, time2) / 60.0
+        totalTime += duration
     }
 
-    return totalDistance / totalTime
+    return if (totalTime > 0) totalDistance / totalTime else 0.0
 }
 
 
@@ -173,6 +180,14 @@ fun createTractorPath(polygon: List<Pair<Double, Double>>, implementWidth: Doubl
         path.add(Triple(point.first, point.second, timestamp))
     }
     return path
+}
+
+fun addTimestamp(points: List<Pair<Double, Double>>): List<Triple<Double, Double, LocalDateTime>> {
+    val pointsTime: MutableList<Triple<Double, Double, LocalDateTime>> = mutableListOf()
+    for(p in points)
+        pointsTime.add(Triple(p.first, p.second, LocalDateTime.now()))
+
+    return pointsTime
 }
 
 // Function to create a buffer polygon with specified offset distance

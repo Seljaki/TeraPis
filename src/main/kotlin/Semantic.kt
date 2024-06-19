@@ -11,7 +11,9 @@ class CalculatePathFunction(val workName: String, val plotName: String): Stateme
         if(work == null || plot == null || work.implementWidth == null || work.maxSpeed == null)
             return
 
-        work.path = createTractorPath(plot.coordinates, work.implementWidth!!, work.maxSpeed!!).toMutableList()
+        //work.path = createTractorPath(plot.coordinates, work.implementWidth!!, work.maxSpeed!!).toMutableList()
+        work.path = addTimestamp(generateBoustrophedonPath(plot.coordinates, work.implementWidth!! / 70000)).toMutableList()
+        work.plot = plotName
     }
 }
 

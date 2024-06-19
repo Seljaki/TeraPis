@@ -2,9 +2,10 @@ package si.seljaki
 
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
+import java.io.File
 import java.time.LocalDateTime
 
-fun convertPlotsAndWorkToGeoJson(plots: List<Plot>, works: List<Work>): String {
+fun convertPlotsAndWorkToGeoJson(plots: List<Plot>, works: List<Work>, outputFile: File = File("output.json")) {
     val featureCollection = FeatureCollection(
         "FeatureCollection",
         features = mutableListOf()
@@ -43,11 +44,8 @@ fun convertPlotsAndWorkToGeoJson(plots: List<Plot>, works: List<Work>): String {
 
     // Convert FeatureCollection to GeoJSON string
     val mapper = ObjectMapper()
-    return try {
-        mapper.writeValueAsString(featureCollection)
-    } catch (e: JsonProcessingException) {
-        "Error converting to GeoJSON: ${e.message}"
-    }
+
+    mapper.writeValue(outputFile, featureCollection)
 }
 
 // Function to create Polygon geometry from coordinates

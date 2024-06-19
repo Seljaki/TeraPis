@@ -592,7 +592,7 @@ class SyntaxAnalyzer(private val scanner: Scanner) {
 
 fun main() {
     var result = false
-    val file = File("semantika_tests/good/02.txt")
+    val file = File("semantika_tests/good/04.txt")
 
     try {
         val ast = SyntaxAnalyzer(Scanner(Lexicon, file.inputStream())).parse()
@@ -601,6 +601,7 @@ fun main() {
 
         if(!result)
             return
+
         val variables: MutableMap<String, Double> = mutableMapOf()
         val plots: MutableMap<String, Plot> = mutableMapOf()
         val works: MutableMap<String, Work> = mutableMapOf()

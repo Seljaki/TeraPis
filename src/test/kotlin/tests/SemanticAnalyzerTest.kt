@@ -2,6 +2,9 @@ package tests
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import si.seljaki.Lexicon
+import si.seljaki.Scanner
+import si.seljaki.SyntaxAnalyzer
 import java.io.File
 
 class SemanticAnalyzerTest {
@@ -13,7 +16,7 @@ class SemanticAnalyzerTest {
             println("\nTesting file ${file.name}")
             var result = false
             try {
-                //result = SemanticAnalyzer(Scanner(Lexicon, file.inputStream())).parse()
+                result = SyntaxAnalyzer(Scanner(Lexicon, file.inputStream())).parse().first
                 println("No error")
             } catch (e: Exception) {
                 println("Error")
@@ -32,7 +35,7 @@ class SemanticAnalyzerTest {
                 println("\nTesting file ${file.name}")
                 var result = false
                 try {
-                    //result = SemanticAnalyzer(Scanner(Lexicon, file.inputStream())).parse()
+                    result = SyntaxAnalyzer(Scanner(Lexicon, file.inputStream())).parse().first
                     println("No error")
                 } catch (e: Exception) {
                     println("Error")
