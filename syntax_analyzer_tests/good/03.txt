@@ -1,0 +1,20 @@
+var_test = 12 - 5
+var_test1 = var_test
+
+work "Sejanje koruze" {
+  path: [
+    PointT(100.0, 0.0, 20240425T071759Z),
+    PointT(101.0, 0.0, 20240425T071759Z),
+    PointT(101.0, 1.0, 20240425T071759Z)
+  ],
+  action: "planting",
+  max-speed: 8 + 1,
+  implement-width: 4 - 1 - var_test,
+  plot: "Ime"
+}
+
+work "Pluzenje" {
+  action: "plowing",
+  max-speed: 12,
+  implement-width: 3
+}

@@ -1,0 +1,40 @@
+var_Tes2t
+plot "Ime" {
+  coordinates: [
+    Point(100.0, 0.0),
+    Point(101.0, 0.0),
+    Point(101.0, 1.0),
+    Point(100.0, 1.0),
+    Point(100.0, 0.0)
+  ],
+  type: forest
+}
+work "Sejanje koruze" {
+  path: [
+    PointT(100.0, 0.0, 20240425T071759Z),
+    PointT(101.0, 0.0, 20240425T071759Z),
+    PointT(101.0, 1.0, 20240425T071759Z)
+  ],
+  action: "planting",
+  max-speed: 8,
+  implement-width: 3,
+  plot: "Ime"
+}
+
+work "Pluzenje" {
+  action: "plowing",
+  max-speed: 12,
+  implement-width: 3
+}
+
+if plot "Ime" is valid {
+  CalculatePath("Ime", "Pluzenje")
+  CalculateArea("Ime")
+}
+
+if plot "ime" contains "Sejanje koruze" {
+  CalculateEfficiency("Ime", "Sejanje koruze")
+}
+
+CalculateAverageSpeed("Sejanje koruze")
+CalculateAreaCovered("Sejanje koruze")

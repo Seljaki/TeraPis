@@ -1,0 +1,60 @@
+Statements = Statement Statements | Statement
+Statement = plot PlotDefinition | work WorkDefinition | if If | Function | variable VariableAssigment
+
+VariableAssigment := = Expr
+
+PlotDefinition = name { PlotBody }
+
+PlotBody = PlotBody' , PlotBody | PlotBody'
+PlotBody' = coordinates Coordinates | type PlotType
+
+Coordinates = : [ Points ]
+Points = Point , Points | Point
+Point = point ( Expr , Expr )
+
+PlotType =  : forest | : field
+
+WorkDefinition =  name { WorkBody }
+
+WorkBody = WorkBody' , WorkBody | WorkBody'
+WorkBody' = path Path | action Action | max-speed MaxSpeed | implement-width ImplementWidth | plot WorkPlot
+
+Path =  : [ Pointts ]
+Pointts = Pointt , Pointts | Pointt
+Pointt = pointt ( Expr , Expr , timestamp )
+
+Action =  : name
+MaxSpeed =  : Expr
+ImplementWidth = : Expr
+WorkPlot = : name
+
+
+If = plot name If'
+If' = is IfIsValid | contains IfContains
+IfIsValid =  valid { Statements }
+IfContains =  name { Statements }
+
+
+Function = calculatepath ( name , name )
+    | calculatearea ( name )
+    | calculateefficiency ( name , name )
+    | calculateareacovered ( name )
+    | calculateaveragespeed ( name )
+
+
+
+Expr = Additive
+Additive = Multiplicative Additive'
+Additive' = plus Multiplicative Additive'
+    | minus Multiplicative Additive'
+    | ϵ
+Multiplicative = Exponential Multiplicative'
+Multiplicative' = times Exponential Multiplicative'
+    | divide Exponential Multiplicative'
+    | integer-divide Exponential Multiplicative'
+    | ϵ
+Exponential = Unary Exponential'
+Exponential' = pow Unary Exponential'
+    | ϵ
+Unary = plus Primary | minus Primary | Primary
+Primary = real | variable | 1paren Additive rparen
